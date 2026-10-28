@@ -62,6 +62,13 @@ fn main() {
             println!("cargo:rerun-if-changed={}", entry.path().display());
         }
     }
+    // Fonts are embedded by the Slint compiler; track them so a regenerated
+    // font subset actually re-embeds instead of being cached.
+    for entry in WalkDir::new("ui/fonts").into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            println!("cargo:rerun-if-changed={}", entry.path().display());
+        }
+    }
 
     slint_build::compile_with_config(
         "ui/appwindow.slint",
