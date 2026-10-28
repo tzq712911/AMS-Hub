@@ -18,6 +18,7 @@ export struct UiFilament {
 }
 
 export struct UiTray {
+  brand: string,
   id: int,
   external: bool,
   spool-state: UiTrayState,
@@ -142,9 +143,11 @@ export enum SpoolStagingState {
 // Functions to call rust
 export global AppBackend {
     pure callback get-console-presets() -> [UiConsolePreset];
+    pure callback get-console-brands()->[string];
     pure callback get-console-calibrations(tray-id: int, filament-id: string) -> [UiConsoleCalibration];
     callback configure-console-slot(tray-id: int, preset-code: string, material: string, color-code: string, calibration-id: int) -> string;
     callback register-console-tag(tag-id: string, preset-code: string, material: string, color-code: string) -> string;
+    callback register-console-tag-brand(tag-id:string,preset-code:string,material:string,color-code:string,brand:string)->string;
     callback clear-staging();
     callback set-staging-to-tray(tray-id: int);
     callback encode-tag() -> bool;
@@ -417,7 +420,7 @@ export global AppState {
     public function read-tag-succeeded(ui-spool-info: UiSpoolRecordDisplay, final-step: bool) {
         self.spool-staging-state = SpoolStagingState.Scanned;
         self.spool-staging-info = ui-spool-info;
-        self.user-message = "已识别耗材，请选择目标槽位";
+        self.user-message = "已识别耗材，请装入空槽，等待自动匹配";
         self.user-message-type = StatusType.Success;
         start-highlight-tray(999);
         if final-step {

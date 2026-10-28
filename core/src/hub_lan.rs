@@ -165,7 +165,7 @@ async fn ac_inner(framework: Rc<RefCell<Framework>>, config:&Config, requested:O
     let topic=p::ac_topic(&auth.model,&auth.device,false)?;
     // Read before writing: only a currently reported box and slot may be addressed.
     ac_publish(&mut mqtt,&topic,None).await?;
-    let before=ac_receive(&mut mqtt,&report).await?;
+    let before=ac_receive(&mut mqtt,&report,config.ac_empty_status).await?;
     if let Some(expected)=requested {
         if !before.iter().any(|s|s.box_id==expected.box_id&&s.index==expected.index) { return Err("ACE 未报告该料盒或槽位"); }
         ac_publish(&mut mqtt,&topic,Some(expected)).await?;
@@ -174,7 +174,7 @@ async fn ac_inner(framework: Rc<RefCell<Framework>>, config:&Config, requested:O
         while Instant::now()<until { let _=with_timeout(until-Instant::now(),mqtt.read()).await; }
         ac_publish(&mut mqtt,&topic,None).await?;
         loop {
-            let actual=ac_receive(&mut mqtt,&report).await?;
+            let actual=ac_receive(&mut mqtt,&report,config.ac_empty_status).await?;
             if p::confirmed(Brand::Anycubic,expected,&actual) { return Ok(actual); }
         }
     }
@@ -185,12 +185,12 @@ async fn ac_publish<T: Read+Write>(mqtt:&mut MyMqtt<'_,T>,topic:&str,slot:Option
     let body=p::ac_request(slot,epoch_ms()?,&msgid)?.to_string();
     mqtt.write(Packet::Publish(Publish{dup:false,qos:QoS::AtMostOnce,pid:None,retain:false,topic_name:topic,payload:body.as_bytes()})).await.map_err(|_|"ACE 请求发送失败")
 }
-async fn ac_receive<T: Read+Write>(mqtt:&mut MyMqtt<'_,T>,topic:&str) -> Result<Vec<Slot>> {
+async fn ac_receive<T: Read+Write>(mqtt:&mut MyMqtt<'_,T>,topic:&str,empty_status:Option<i64>) -> Result<Vec<Slot>> {
     loop {
         if let Some(Packet::Publish(publish))=mqtt.read().await.map_err(|_|"ACE 状态读取失败")? {
             if publish.topic_name==topic {
                 if let Ok(body)=serde_json::from_slice::<Value>(publish.payload) {
-                    if let Ok(slots)=p::ac_slots(&body) { return Ok(slots); }
+                    if let Ok(slots)=p::ac_slots(&body,empty_status) { return Ok(slots); }
                 }
             }
         }

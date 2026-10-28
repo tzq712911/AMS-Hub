@@ -1,6 +1,7 @@
 import { AppState, AppBackend, ControlState, SpoolStagingState, UiTray, UiTrayState, UiFilamentState } from "app.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
-import { HubUi } from "hub.slint";
+import { HubUi, BrandTabs } from "hub.slint";
+import { ScrollView } from "std-widgets.slint";
 
 component SlotCard inherits Rectangle {
     in property <UiTray> tray;
@@ -38,7 +39,7 @@ component SlotCard inherits Rectangle {
             height: 18px; font-size: 12px;
             horizontal-alignment: center;
             color: root.tray.spool-state == UiTrayState.Loaded ? ConsoleTheme.accent : ConsoleTheme.muted;
-            text: root.tray.spool-state == UiTrayState.Loaded ? "使用中" : root.tray.spool-state == UiTrayState.Empty ? "空槽" : root.tray.spool-state == UiTrayState.Reading ? "识别中" : "K " + (root.tray.k == "" ? "默认" : root.tray.k);
+            text: root.tray.brand == "" ? "品牌未记录" : root.tray.brand;
         }
     }
     touch := TouchArea { clicked => { root.clicked(); } }
@@ -54,20 +55,25 @@ export component ConsoleHome inherits Rectangle {
         padding: 10px; spacing: 8px;
         HorizontalLayout {
             height: 34px; spacing: 8px;
-            ConsoleLabel { text: "耗材"; font-size: 22px; }
+            BrandTabs {}
             ConsoleLabel { text: AppState.some-printer-connected ? "● 已连接" : "○ 等待连接"; color: AppState.some-printer-connected ? ConsoleTheme.accent : ConsoleTheme.muted; font-size: 13px; }
-            ConsoleButton { width: 78px; text: "多品牌"; clicked => { HubUi.visible=true; } }
+            ConsoleButton { width: 54px; text: "设备"; clicked => { root.printers(); } }
             ConsoleButton { width: 60px; text: "设置"; clicked => { root.settings(); } }
         }
-        HorizontalLayout {
+        ScrollView {
+            height:27px;
+            viewport-width:Math.max(460px,AppState.ams-exists.length*70px);
+            HorizontalLayout {
             height: 27px; spacing: 5px;
             for ams-id in AppState.ams-exists: ConsoleButton {
-                text: "AMS " + (ams-id + 1);
+                text: ams-id > 3 ? "HT " + (ams-id - 3) : "AMS " + (ams-id + 1);
+                width:64px;
                 height: 27px;
                 primary: AppState.curr-ams-id == ams-id;
                 clicked => { AppState.curr-ams-id = ams-id; }
             }
             if AppState.ams-exists.length == 0: ConsoleLabel { text: "等待 AMS 状态"; color: ConsoleTheme.muted; font-size: 13px; }
+            }
         }
         HorizontalLayout {
             height: 147px; spacing: 7px;
@@ -91,7 +97,7 @@ export component ConsoleHome inherits Rectangle {
                 Rectangle { width: 5px; border-radius: 2px; background: root.staged ? AppState.spool-staging-info.color : ConsoleTheme.accent; }
                 VerticalLayout {
                     ConsoleLabel { text: AppState.control-state == ControlState.PostAction || AppState.control-state == ControlState.BootFailed ? AppState.user-message : root.staged ? "已识别 · " + AppState.spool-staging-info.spool-record.material-type : AppState.control-state == ControlState.Reading ? "正在读取标签…" : "将耗材标签靠近读卡区"; font-size: 14px; wrap: word-wrap; }
-                    if AppState.control-state != ControlState.PostAction && AppState.control-state != ControlState.BootFailed: ConsoleLabel { text: root.staged ? "点击目标槽位，核对后确认写入" : "支持已绑定标签与兼容耗材标签"; font-size: 12px; color: ConsoleTheme.muted; }
+                    if AppState.control-state != ControlState.PostAction && AppState.control-state != ControlState.BootFailed: ConsoleLabel { text: root.staged ? "等待装料 · 自动识别槽位，也可点击手动设置" : "未知标签可在屏幕建档"; font-size: 12px; color: ConsoleTheme.muted; }
                 }
                 if root.staged: ConsoleButton { width: 58px; text: "清除"; clicked => { AppBackend.clear-staging(); } }
                 if AppState.control-state == ControlState.PostAction: ConsoleButton { width: 58px; text: "完成"; clicked => { AppState.control-state = ControlState.Ready; AppState.stop-highlight-tray(); } }

@@ -890,6 +890,11 @@ impl ViewModel {
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_get_console_presets(move || vm.borrow().console_presets());
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brands(|| {
+            let mut names:Vec<SharedString>=alloc::vec!["Generic".into()];
+            names.extend(FILAMENT_BRAND_NAMES.lines().filter(|s|!s.starts_with('#')&&!s.trim().is_empty()).map(|s|s.split(',').next().unwrap().trim().into()));
+            slint::ModelRc::new(slint::VecModel::from(names))
+        });
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_get_console_calibrations(move |tray, filament| vm.borrow().console_calibrations(tray, &filament));
@@ -901,11 +906,15 @@ impl ViewModel {
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_register_console_tag(move |tag, preset, material, color| {
-                vm.borrow().register_console_tag(&tag, &preset, &material, &color)
+                vm.borrow().register_console_tag(&tag, &preset, &material, &color, "Generic")
             });
+        let vm = self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>()
+            .on_register_console_tag_brand(move |tag,preset,material,color,brand| vm.borrow().register_console_tag(&tag,&preset,&material,&color,&brand));
     }
 
-    fn register_console_tag(&self, tag: &str, preset: &str, material: &str, color: &str) -> SharedString {
+    fn register_console_tag(&self, tag: &str, preset: &str, material: &str, color: &str, brand: &str) -> SharedString {
+        if brand.trim().is_empty() || brand.len()>64 || brand.chars().any(char::is_control) { return "请选择有效品牌".into(); }
         if ![8, 14, 20].contains(&tag.len()) || !tag.bytes().all(|c| c.is_ascii_hexdigit()) {
             return "标签编号无效，请重新扫描".into();
         }
@@ -915,6 +924,7 @@ impl ViewModel {
         if let Err(error) = crate::console_validation::validate_metadata(0, color, &info.slicer_code,
             material, info.nozzle_temp_low as u32, info.nozzle_temp_high as u32) { return error.into(); }
         let record = SpoolRecord {
+            brand:brand.trim().into(),
             tag_id: tag,
             material_type: material.into(),
             color_code: color.to_ascii_uppercase(),
@@ -1405,12 +1415,17 @@ impl ViewModel {
                 _ => &bambu_printer.ams_trays()[ui_tray_id as usize],
             };
             let mut ui_tray = trays_state.row_data(tray_row).unwrap().clone();
+            ui_tray.brand=SharedString::new();
             ui_tray.spool_state = crate::app::UiTrayState::from(&curr_tray.state);
             if let bambu::Filament::Known(filament_info) = &curr_tray.filament {
                 let color = u32::from_str_radix(&filament_info.tray_color[..6], 16).unwrap() + 0xFF000000; // the plus at the end is fo add alpha
                 ui_tray.filament.color = slint::Color::from_argb_encoded(color);
                 ui_tray.filament.material = slint::SharedString::from(&filament_info.tray_type);
                 ui_tray.filament.state = crate::app::UiFilamentState::Known;
+                if let Some(info)=self.get_filament_info(&filament_info.tray_info_idx,Some(&filament_info.tray_type)) {
+                    if info.slicer_name.starts_with("Bambu "){ui_tray.brand="Bambu Lab".into();}
+                    else if info.slicer_name.starts_with("Generic "){ui_tray.brand="Generic".into();}
+                }
             } else {
                 ui_tray.filament.state = crate::app::UiFilamentState::Unknown;
             }
@@ -1425,6 +1440,8 @@ impl ViewModel {
             let k_value_unformatted = bambu_printer.get_tray_resolved_k_value(curr_tray, ui_tray_id);
             // let k_value_for_ui = k_value_for_ui(&k_value_unformatted);
             ui_tray.k = SharedString::from(k_value_unformatted);
+            ui_tray.brand = curr_tray.meta_info.spool_id.as_ref()
+                .and_then(|id| self.store.get_spool_by_id(id)).filter(|r|!r.brand.is_empty()).map(|r|r.brand.into()).unwrap_or_else(||ui_tray.brand.clone());
             ui_tray.weight_display = self.weight_display(curr_tray);
             ui_tray.used_in_print = curr_tray.meta_info.used_in_print;
             trays_state.set_row_data(tray_row, ui_tray);
@@ -1624,6 +1641,11 @@ impl ViewModel {
     }
 
     fn display_filament_staging(&self, notify_operation: bool) {
+        if notify_operation {
+            if let Some(record)=self.filament_staging.borrow().spool_rec() {
+                self.ui_weak.unwrap().global::<crate::app::HubUi>().invoke_scan(record.material_type.clone().into(),record.color_code.clone().into(),record.brand.clone().into());
+            }
+        }
         if self.bambu_printer_model.printers.is_empty() {
             if let Some(record) = self.filament_staging.borrow().spool_rec() {
                 let display = self.ui_get_spool_record_display(&record.id.to_shared_string());
@@ -2342,7 +2364,7 @@ impl BambuPrinterObserver for ViewModel {
         }
 
         // If staging is loaded from scanned/encoded then check spool load cases
-        if ![StagingOrigin::Unloaded, StagingOrigin::Empty].contains(self.filament_staging.borrow().origin()) {
+        if self.ui_weak.unwrap().global::<crate::app::HubUi>().get_active_brand()==0 && ![StagingOrigin::Unloaded, StagingOrigin::Empty].contains(self.filament_staging.borrow().origin()) {
             // first - if there is a spool (from scan/encode) in staging, and a spool is loaded then
             // at the moment of loading notify ui so it can reset the staging timer in case it is too low
             // and won't reach read_done before timer is out
@@ -2571,7 +2593,11 @@ impl SpoolTagObserver for ViewModel {
                 }
                 ui.unwrap().global::<crate::app::AppState>().invoke_erasing_succeeded();
             }
-            Status::ReadSuccess(read_result) => match read_result {
+            Status::ReadSuccess(read_result) => {
+                // A new tag replaces the staged identity, including when it needs registration.
+                self.filament_staging.borrow_mut().clear();
+                ui.unwrap().global::<crate::app::AppState>().invoke_empty_spool_staging();
+                match read_result {
                 // TODO: For some reason SpoolV1 tags have precedence, not sure why.
                 // Probably becaue of the use if their internal written ID in case such exist, not sure it's good
                 // Need to remember the reason
@@ -2666,6 +2692,7 @@ impl SpoolTagObserver for ViewModel {
                             bamtu_tag_str.into(),
                         );
                     }
+                }
                 }
             },
             Status::Failure(spool_tag::Failure::TagWriteFailure(text_str)) => {

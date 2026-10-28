@@ -29,19 +29,26 @@ export component ConsolePreview inherits Window {
     public function simulate-slot(tray-id:int, material:string, tint:color) {
         if tray-id>=0 && tray-id<4 { AppState.trays-state[tray-id+2].filament = {state:UiFilamentState.Known,material:material,color:tint}; }
     }
+    public function multi-ams-demo() { root.home();HubUi.visible=false;HubUi.active-brand=0;AppState.ams-exists=[0,1,2,3,4,5]; }
     public function load-hub-demo(profile:int, locked:bool) {
+        HubUi.active-brand=profile;
         HubUi.brand-name=profile==1?"Snapmaker U1":"Anycubic ACE";
         HubUi.host="192.0.2.10 · 模拟地址";
         HubUi.slots=[
-            {box-id:0,index:0,label:profile==1?"T1 · PLA":"槽 1 · PLA",rgba:"00CE9BFF",locked:profile==1&&locked},
-            {box-id:0,index:1,label:profile==1?"T2 · PLA":"槽 2 · PLA",rgba:"71CCE1FF",locked:false},
-            {box-id:0,index:2,label:profile==1?"T3 · PLA":"槽 3 · PLA",rgba:"F01B23FF",locked:false},
-            {box-id:0,index:3,label:profile==1?"T4 · PETG":"槽 4 · PETG",rgba:"FFFFFFFF",locked:false}
+            {box-id:0,index:0,label:"槽 1",material:"PLA",brand:"SUNLU",tint:#00ce9b,rgba:"00CE9BFF",locked:profile==1&&locked},
+            {box-id:0,index:1,label:"槽 2",material:"PLA",brand:"eSUN",tint:#71cce1,rgba:"71CCE1FF",locked:false},
+            {box-id:0,index:2,label:"槽 3",material:"PLA",brand:"Polymaker",tint:#f01b23,rgba:"F01B23FF",locked:false},
+            {box-id:0,index:3,label:"槽 4",material:"PETG",brand:"Generic",tint:#ffffff,rgba:"FFFFFFFF",locked:false}
         ];
     }
     public function simulate-hub-slot(index:int,material:string,rgba:string) {
+        HubUi.slots[index].material=material;
         HubUi.slots[index].label="槽 "+(index+1)+" · "+material;
         HubUi.slots[index].rgba=rgba;
+    }
+    public function scan-record(tag:string,brand:string,material:string,rgba:string,tint:color,preset:string) {
+        root.home();AppState.spool-staging-state=SpoolStagingState.Scanned;
+        AppState.spool-staging-info={spool-record:{tag-id:tag,id:tag,brand:brand,material-type:material,color-code:rgba,slicer-filament:preset},color:tint,slicer-filament-name:preset};
     }
     out property <[UiConsolePreset]> demo-presets: [
         { code: "GFA00", name: "Bambu PLA Basic", material: "PLA", temp-min: 190, temp-max: 240 },
@@ -57,19 +64,40 @@ export component ConsolePreview inherits Window {
         AppState.ams-exists = [0];
         AppState.tray-selected-tray-index = 2;
         AppState.trays-state = [
-            { id: 255, external: true, spool-state: UiTrayState.Empty, filament: { state: UiFilamentState.Unknown } },
-            { id: 254, external: true, spool-state: UiTrayState.Empty, filament: { state: UiFilamentState.Unknown } },
-            { id: 0, spool-state: UiTrayState.Loaded, filament: { state: UiFilamentState.Known, material: "PLA", color: #00ce9b }, k: "0.020", used-in-print: true },
-            { id: 1, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PLA", color: #71cce1 }, k: "0.022" },
-            { id: 2, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PLA", color: #f01b23 }, k: "0.019" },
-            { id: 3, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PETG", color: #ffffff }, k: "0.032" }
+{ id:255,external:true,spool-state:UiTrayState.Empty },
+{ id:254,external:true,spool-state:UiTrayState.Empty },
+{ id:0,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:1,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:2,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:3,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" },
+{ id:4,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:5,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:6,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:7,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" },
+{ id:8,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:9,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:10,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:11,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" },
+{ id:12,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:13,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:14,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:15,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" },
+{ id:16,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:17,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:18,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:19,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" },
+{ id:20,brand:"SUNLU",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#00ce9b},k:"0.020" },
+{ id:21,brand:"eSUN",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#71cce1},k:"0.020" },
+{ id:22,brand:"Polymaker",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PLA",color:#f01b23},k:"0.020" },
+{ id:23,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" }
         ];
         AppState.spool-staging-state = SpoolStagingState.Scanned;
-        AppState.spool-staging-info = { spool-record: { id: "001", material-type: "PLA", color-code: "00CE9BFF", slicer-filament: "GFA00", ext-has-k: true }, color: #00ce9b, slicer-filament-name: "Bambu PLA Basic", temp-min: 190, temp-max: 240 };
+        AppState.spool-staging-info = { spool-record: { id: "001", brand:"SUNLU", material-type: "PLA", color-code: "00CE9BFF", slicer-filament: "GFA00", ext-has-k: true }, color: #00ce9b, slicer-filament-name: "Bambu PLA Basic", temp-min: 190, temp-max: 240 };
     }
-    if !hub-mode && !HubUi.visible && preview-mode == 0 && AppState.control-state != ControlState.TraySelected: ConsoleHome { settings=>{root.preview-mode=3;} }
+    if !hub-mode && !HubUi.visible && preview-mode == 0 && AppState.control-state != ControlState.TraySelected && AppState.control-state != ControlState.NewTagScan: ConsoleHome { settings=>{root.preview-mode=3;} }
     if !hub-mode && !HubUi.visible && (preview-mode == 1 || (preview-mode == 0 && AppState.control-state == ControlState.TraySelected)): ConsoleEditor { }
-    if preview-mode == 2: ConsoleEditor { registration-mode: true; }
+    if preview-mode == 2 || AppState.control-state == ControlState.NewTagScan: ConsoleEditor { registration-mode: true; }
     if preview-mode == 3: ConsoleSettings {back=>{root.home();}}
-    if (hub-mode || HubUi.visible) && preview-mode != 3: HubPage { }
+    if (hub-mode || HubUi.visible) && preview-mode != 3 && preview-mode != 2 && AppState.control-state != ControlState.NewTagScan: HubPage { }
+    if HubUi.settings-open: ConsoleSettings {back=>{HubUi.settings-open=false;}}
 }

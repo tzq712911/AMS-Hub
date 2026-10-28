@@ -7,3 +7,4 @@ dist/
 .venv/
 local-config*.json
 *.credentials.json
+preview/local-rfid-library.json

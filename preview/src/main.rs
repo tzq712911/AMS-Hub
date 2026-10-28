@@ -1,4 +1,5 @@
 use std::{rc::Rc, cell::RefCell, time::Instant};
+use slint::Model;
 use slint::{ComponentHandle, Rgb8Pixel, platform::{Platform, software_renderer::{MinimalSoftwareWindow, RepaintBufferType}}};
 slint::include_modules!();
 
@@ -39,6 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let weak = ui.as_weak();
     ui.global::<AppBackend>().on_get_slot_display(move |_| weak.unwrap().get_demo_slot());
     ui.global::<AppBackend>().on_get_console_calibrations(|_, _| Default::default());
+    ui.global::<AppBackend>().on_get_console_brands(|| slint::ModelRc::new(slint::VecModel::from(vec!["Generic".into(),"SUNLU".into(),"eSUN".into()])));
     let submissions = Rc::new(RefCell::new(Vec::new()));
     let captured = submissions.clone();
     ui.global::<AppBackend>().on_configure_console_slot(move |tray, preset, material, color, calibration| {
@@ -79,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&ui,&window,&output,name)?;
         click(ui.window(),185.,104.);
         click(ui.window(),400.,290.);
-        assert_eq!(hub_submissions.borrow().last(),Some(&(0,1,"PLA".into(),"00CE9BFF".into(),"Generic".into(),"".into())));
+        assert_eq!(hub_submissions.borrow().last(),Some(&(0,1,"PLA".into(),"00CE9BFF".into(),"SUNLU".into(),"".into())));
         let n=hub_submissions.borrow().len();
         ui.global::<HubUi>().set_busy(true);
         render(&ui,&window,&output,"busy.png")?;
@@ -88,5 +90,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.global::<HubUi>().set_busy(false);
     }
     println!("PASS: U1/ACE slot selection, outgoing callback metadata, busy click guard");
+    ui.set_hub_mode(false);ui.global::<HubUi>().set_visible(false);ui.invoke_multi_ams_demo();
+    render(&ui,&window,&output,"multi-ams.png")?;
+    ui.global::<AppState>().set_curr_ams_id(4);
+    render(&ui,&window,&output,"ams-ht.png")?;
+    assert_eq!(ui.global::<AppState>().get_trays_state().row_data(18).unwrap().id,16);
+    let selections=Rc::new(RefCell::new(Vec::new()));let chosen=selections.clone();
+    ui.global::<HubUi>().on_select_brand(move|brand|chosen.borrow_mut().push(brand));
+    click(ui.window(),95.,25.);
+    assert_eq!(ui.global::<HubUi>().get_active_brand(),1);
+    assert!(ui.global::<HubUi>().get_visible());
+    render(&ui,&window,&output,"brand-tab-u1.png")?;
+    click(ui.window(),150.,25.);
+    assert_eq!(ui.global::<HubUi>().get_active_brand(),2);
+    assert_eq!(selections.borrow().as_slice(),&[1,2]);
+    println!("PASS: on-device U1/ACE Logo tabs and AMS-HT tray mapping");
     Ok(())
 }

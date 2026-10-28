@@ -1,4 +1,4 @@
-import { ScrollView } from "std-widgets.slint";
+import { ScrollView, ComboBox } from "std-widgets.slint";
 import { AppState, AppBackend, ControlState, SpoolStagingState, UiTray, UiConsolePreset, UiConsoleCalibration, UiSpoolRecordDisplay } from "app.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
 
@@ -26,6 +26,7 @@ export component ConsoleEditor inherits Rectangle {
     property <int> picker: 0;
     property <string> notice;
     property <bool> submitted: false;
+    property <string> brand-name:"Generic";
     function close() { AppState.control-state = ControlState.Ready; }
     function clear-edits() { selected-preset = -1; selected-color = registration-mode && definition.spool-record.color-code == "" ? 0 : -1; selected-calibration = -1; notice = ""; submitted = false; }
     VerticalLayout {
@@ -70,7 +71,11 @@ export component ConsoleEditor inherits Rectangle {
                     ConsoleLabel { width: 100px; text: "动态压力 K"; }
                     ConsoleButton { text: (root.selected-calibration < 0 ? "自动匹配 / 默认" : root.calibrations[root.selected-calibration].name) + "  ▾"; clicked => { root.picker = 2; } }
                 }
-                if root.registration-mode: ConsoleLabel { height: 32px; text: "K 校准记录可在选择槽位后设置"; color: ConsoleTheme.muted; font-size: 13px; }
+                if root.registration-mode: HorizontalLayout {
+                    height:32px;
+                    ConsoleLabel {width:100px;text:"品牌";}
+                    ComboBox {model:AppBackend.get-console-brands();selected(value)=>{root.brand-name=value;}}
+                }
                 ConsoleLabel { height: 18px; font-size: 12px; color: ConsoleTheme.muted; text: root.registration-mode ? "仅保存本地对应关系，不改写原标签" : "只修改耗材信息，不执行进退料或加热"; }
             }
         }
@@ -83,7 +88,7 @@ export component ConsoleEditor inherits Rectangle {
                 enabled: !root.submitted && (root.registration-mode || AppState.some-printer-connected) && root.material-type != "";
                 clicked => {
                     if root.registration-mode {
-                        root.notice = AppBackend.register-console-tag(AppState.new-tag-scan-tag-id, root.preset-code, root.material-type, root.color-code);
+                        root.notice = AppBackend.register-console-tag-brand(AppState.new-tag-scan-tag-id, root.preset-code, root.material-type, root.color-code,root.brand-name);
                         root.submitted = root.notice == "";
                     } else if root.use-scan && root.selected-preset < 0 && root.selected-color < 0 && root.selected-calibration < 0 {
                         AppBackend.set-staging-to-tray(root.tray.id);

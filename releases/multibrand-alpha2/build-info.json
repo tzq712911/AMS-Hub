@@ -1,0 +1,13 @@
+{
+  "imageKind": "application-only; not a merged full-flash image",
+  "sha256": "1D8C4B21F9D704C05EF08DFE17760F2680F6D9276DE4B84F9A98022AD0A903EB",
+  "customVersion": "0.6.0-alpha.2+ams-hub",
+  "hardware": "WT32-SC01 Plus + PN532 SPI + microSD",
+  "upstreamCommit": "3532f8d962dd1a95c7d4ebb37beddca5bbefd39a",
+  "imageBytes": 7333696,
+  "buildOnly": true,
+  "applicationPartitionBytes": 7340032,
+  "flashBytes": 16777216,
+  "chip": "esp32s3",
+  "hardwareTested": false
+}

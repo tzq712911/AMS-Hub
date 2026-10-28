@@ -12,6 +12,8 @@ pub enum Brand { #[default] U1, Anycubic }
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Only configure after verifying the empty-sensor enum for the installed ACE firmware.
+    pub ac_empty_status:Option<i64>,
     pub brand: Brand,
     pub host: String,
     pub api_key: String,
@@ -20,7 +22,7 @@ pub struct Config {
     pub tls_name: String,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Filament {
     pub vendor: String,
     pub material: String,
@@ -29,7 +31,7 @@ pub struct Filament {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Slot { pub box_id: i64, pub index: u8, pub filament: Filament, pub locked: bool }
+pub struct Slot { pub box_id: i64, pub index: u8, pub filament: Filament, pub locked: bool, pub present:Option<bool> }
 
 pub fn rgba(value: &str) -> Result<String> {
     if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_hexdigit()) { return Err("颜色必须为八位 RGBA"); }
@@ -57,6 +59,7 @@ pub fn u1_slots(body: &Value) -> Result<Vec<Slot>> {
     let types = state["filament_type"].as_array().ok_or("U1 未返回耗材状态，请检查 Moonraker 权限与固件")?;
     if types.len() != 4 { return Err("U1 工具头状态不完整"); }
     (0..4).map(|i| Ok(Slot { box_id: 0, index: i as u8,
+        present:state["filament_exist"][i].as_bool(),
         locked: state["filament_official"][i].as_bool().ok_or("U1 未返回 RFID 锁定状态")?,
         filament: Filament {
             material: types[i].as_str().ok_or("U1 类型字段无效")?.into(),
@@ -78,15 +81,15 @@ pub fn ac_request(slot: Option<&Slot>, timestamp: u64, msgid: &str) -> Result<Va
         let f = &slot.filament;
         let color = rgba(&f.rgba)?;
         let rgb: Vec<u8> = (0..3).map(|i| u8::from_str_radix(&color[i*2..i*2+2],16).unwrap()).collect();
-        token(&f.material)?;
+        if f.material.is_empty()||f.material.len()>64||!f.material.bytes().all(|b|b.is_ascii_alphanumeric()||b" _-+./".contains(&b)){return Err("ACE 耗材类型无效");}
         // Only these fields are effective on ACE. Do not send Bambu IDs, brand, temperature or K.
         json!({"multi_color_box":[{"id":slot.box_id,"slots":[{"index":slot.index,"type":f.material,"color":rgb}]}]})
     } else { json!({"multi_color_box":[]}) };
     Ok(json!({"type":"multiColorBox","action":if slot.is_some(){"setInfo"}else{"getInfo"},"timestamp":timestamp,"msgid":msgid,"data":data}))
 }
 
-pub fn ac_slots(body: &Value) -> Result<Vec<Slot>> {
-    if body["type"] != "multiColorBox" { return Err("不是 ACE 状态消息"); }
+pub fn ac_slots(body: &Value, empty_status:Option<i64>) -> Result<Vec<Slot>> {
+    if body.get("type").is_some() && body["type"] != "multiColorBox" { return Err("不是 ACE 状态消息"); }
     let boxes = body["data"]["multi_color_box"].as_array().ok_or("ACE 未返回槽位状态")?;
     let mut out = Vec::new();
     for b in boxes {
@@ -96,7 +99,7 @@ pub fn ac_slots(body: &Value) -> Result<Vec<Slot>> {
             let c = s["color"].as_array().filter(|c| c.len() == 3).ok_or("ACE 颜色无效")?;
             let mut rgb = [0u8;3];
             for i in 0..3 { rgb[i] = c[i].as_u64().filter(|n| *n <= 255).ok_or("ACE 颜色无效")? as u8; }
-            out.push(Slot { box_id:id,index,locked:false,filament:Filament {
+            out.push(Slot { box_id:id,index,locked:id<0,present:s["loaded"].as_bool().or_else(|| match s["status"].as_i64() {Some(5)=>Some(true),Some(n) if empty_status==Some(n)=>Some(false),_=>None}),filament:Filament {
                 vendor: "".into(), subtype:"".into(), material:s["type"].as_str().ok_or("ACE 类型无效")?.to_string(),
                 rgba:format!("{:02X}{:02X}{:02X}FF",rgb[0],rgb[1],rgb[2]),
             }});

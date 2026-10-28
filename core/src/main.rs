@@ -21,6 +21,7 @@ mod console_validation;
 mod hub;
 mod hub_lan;
 mod hub_protocol;
+mod load_transition;
 mod ssdp;
 mod store;
 mod view_model;

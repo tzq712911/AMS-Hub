@@ -37,7 +37,8 @@ export component AppWindow inherits Window {
     background: ConsoleTheme.background;
     width: 480px;
     height: 320px;
-    if HubUi.visible: HubPage { width:480px; height:320px; z:100; }
+    if HubUi.visible && AppState.control-state != ControlState.NewTagScan: HubPage { width:480px; height:320px; z:100; }
+    if HubUi.settings-open: ConsoleSettings {width:480px;height:320px;z:101;back=>{HubUi.settings-open=false;}}
 
     property <int> current-page: (FrameworkState.web-config-state == WebConfigState.Started-AP || FrameworkState.web-config-state == WebConfigState.Started-STA-Displayed) ? 2 : (AppState.control-state == ControlState.Booting || /*AppState.control-state == ControlState.ConnectingToPrinter ||*/ AppState.control-state == ControlState.BootFailed) ? 0 : 1;
     changed current-page => {

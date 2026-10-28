@@ -1,5 +1,6 @@
 param(
     [switch]$Mirror,
+    [switch]$Offline,
     [switch]$Baseline
 )
 $ErrorActionPreference = 'Stop'
@@ -19,6 +20,7 @@ if ($Mirror) {
     $taskArgs += @('--config', 'source.crates-io.replace-with="rsproxy"', '--config', 'source.rsproxy.registry="sparse+https://rsproxy.cn/index/"')
 }
 $taskArgs += @('build', '--release', '--locked')
+if ($Offline) { $taskArgs += '--offline' }
 Push-Location (Join-Path $taskProject 'core')
 try {
     & "$env:CARGO_HOME/bin/cargo.exe" @taskArgs

@@ -8,6 +8,7 @@ WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制
 | --- | --- | --- |
 | 拓竹中文 V1 | `releases/bambu-v1/SpoolEase-console.zh.1-app.bin` | 已编译，保留原文件和校验值 |
 | 多品牌 V2 | `releases/multibrand-v2/AMS-Hub-0.6.0-alpha.1-app.bin` | 已编译，U1 / Anycubic 为实验性适配 |
+| 多品牌 alpha.2 | `releases/multibrand-alpha2/AMS-Hub-0.6.0-alpha.2-app.bin` | 新版：装料事件自动匹配、Logo 选项卡、本地品牌和 RFID 建档 |
 
 两个版本均未经过此项目的实机验证。编译成功不等于已验证 X2D、U1、ACE 或官方切片软件同步；各固件的 `build-info.json` 提供 SHA256、大小和构建状态。
 
@@ -18,10 +19,15 @@ WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制
 - 拓竹：保留现有 LAN / NFC / 槽位设置路径；中文深色界面、预设和颜色选择、已有 K 校准记录选择。
 - U1：Moonraker `:7125` 查询 `print_task_config`，通过 `SET_PRINT_FILAMENT_CONFIG` 设置工具头身份；查询官方 RFID 锁定状态，不强制覆盖；写入后回读比对。当前 UI 默认写 `Generic` 品牌。
 - Anycubic：HTTP `:18910` 本地签名认证、AES-CBC 解密打印机签发的客户端凭据、TLS MQTT `:9883`、`multiColorBox/setInfo`，延迟查询 ACE 状态；只以类型、RGB 比对判定成功。品牌、温度和 K 不作为已同步字段。
-- U1 / ACE 的初版流程为扫描耗材 → 读取机器 → 选择已报告的槽位 → 确认写入。尚未实现按进料事件自动选择目标槽位。
+- alpha.2 主流程：扫描耗材 → 取得空槽传感器基线 → 装入一个槽位 → 稳定确认唯一变化 → 自动写入并回读。等待 120 秒、清除扫描、切换品牌/地址、断连或多槽同时变化都会取消本次自动匹配。
+- 拓竹保留上游单槽读料事件自动写入；U1 使用 `filament_exist`；ACE 仅在报告明确的 `loaded` 布尔值或已确认的空槽状态枚举时自动匹配。缺少可信传感器状态会提示手选，不根据颜色/耗材类型猜测槽位。
 - Anycubic 适配只适用于具有该 LAN 协议和 ACE 的机型/固件；没有承诺整个品牌所有 FDM 机器兼容。外置料架 `extfilbox` 暂未接入。
 
 主界面隐藏库存操作；上游库存、称重和配置后端仍保留。跨品牌不转发 Bambu 预设 ID 或 `cali_idx`。
+
+alpha.2 左上角三个品牌官网图标可直接切换品牌；U1 和 ACE 的连接配置分别保存。拓竹卡片显示品牌，支持 4 组 AMS + 上游已有的 8 个 HT 单槽映射，设备条可横向滚动。实际可连接数量仍取决于机器与上游协议能力。
+
+未知 RFID：在屏幕选择耗材预设、颜色、品牌 → 保存到 SD 卡 UID 对应库 → 再次扫描直接识别。不会改写 RFID 标签内容。原有绑定库保留，不需要使用库存网页。
 
 ## 交互模拟器
 
@@ -50,6 +56,8 @@ python scripts/simulate_ui.py --self-test
 ```
 
 Anycubic 使用 `"brand":"anycubic"`，机器需切换 LAN 模式。客户端证书和密钥来自打印机本地握手，不存入仓库。`ca_pem` 为空时使用该 LAN 协议的自签名 TLS 模式；可配置可信 CA 和 `tls_name` 开启服务端校验。仅在可信局域网中使用，配置中的密钥不要提交到 Git。
+
+分别保存一次 U1、Anycubic 的配置即可建立两个连接档案。保存其他品牌配置不会改变当前选中的连接，重启会恢复最后选中的品牌。ACE 的 `ac_empty_status` 默认 `null`；仅在实机确认哪个状态码表示物理空槽后填写，不能直接把所有“非 5”状态当作空槽。ACE 的品牌信息保存在控制台本地并与该槽位读回的类型/颜色关联，不声称机器保存了品牌。
 
 ## 构建
 

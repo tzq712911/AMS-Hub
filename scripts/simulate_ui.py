@@ -10,6 +10,8 @@ import json
 import slint
 
 ROOT = Path(__file__).resolve().parents[1]
+def field(value,name):
+    return value[name] if isinstance(value,dict) else getattr(value,name)
 
 
 def compile_ui(path, component):
@@ -34,8 +36,13 @@ class Simulator:
         self.writes = []
         self.lines = []
         self.timers = []
+        self.armed = False
+        self.library_path = None if immediate else ROOT / "preview/local-rfid-library.json"
+        self.library = json.loads(self.library_path.read_text(encoding="utf-8")) if self.library_path and self.library_path.exists() else {}
         d = self.device
         d.set_global_callback("AppBackend", "get-console-presets", lambda: d.get_property("demo-presets"))
+        d.set_global_callback("AppBackend", "get-console-brands", lambda: slint.ListModel(["Generic","SUNLU","eSUN","Polymaker","Bambu Lab","Snapmaker","Anycubic"]))
+        d.set_global_callback("AppBackend", "register-console-tag-brand", self.register_tag)
         d.set_global_callback("AppBackend", "get-slot-display", lambda _: d.get_property("demo-slot"))
         d.set_global_callback("AppBackend", "get-console-calibrations", lambda *_: slint.ListModel([]))
         d.set_global_callback("AppBackend", "configure-console-slot", self.bambu_write)
@@ -43,11 +50,16 @@ class Simulator:
         d.set_global_callback("AppBackend", "clear-staging", lambda: d.invoke_global("AppState", "empty-spool-staging"))
         d.set_global_callback("HubUi", "refresh", self.refresh)
         d.set_global_callback("HubUi", "apply", self.hub_write)
+        d.set_global_callback("HubUi", "select-brand", self.change_profile)
+        d.set_global_callback("HubUi", "scan", lambda *_: None)
         self.controls.set_callback("change-profile", self.change_profile)
         self.controls.set_callback("scan", self.scan)
         self.controls.set_callback("page", self.page)
         self.controls.set_callback("change-scenario", self.change_scenario)
         self.controls.set_callback("reset", self.reset)
+        self.controls.set_callback("insert", self.insert)
+        self.controls.set_callback("unknown", self.unknown)
+        self.controls.set_callback("multi-ams", self.multi_ams)
         self.reset()
 
     def log(self, text):
@@ -87,18 +99,68 @@ class Simulator:
         self.generation += 1
         self.pending = False
         self.profile = int(profile)
+        self.armed = False
+        self.controls.set_property("profile", self.profile)
         self.device.set_global_property("HubUi", "busy", False)
-        self.device.set_property("hub-mode", self.profile > 0)
+        self.device.set_property("hub-mode", False)
+        self.device.set_global_property("HubUi", "active-brand", self.profile)
         self.device.set_global_property("HubUi", "visible", self.profile > 0)
         self.device.invoke("home")
         if self.profile:
             self.device.invoke("load-hub-demo", self.profile, self.scenario == 4)
-            self.device.set_global_property("HubUi", "status", "演示状态：请点击读取，选择目标槽位")
+            self.device.set_global_property("HubUi", "status", "扫描耗材后等待装料，自动匹配实际槽位")
         self.log("切换机型：" + ["Bambu X2D", "Snapmaker U1", "Anycubic ACE"][self.profile])
 
     def scan(self, kind):
         self.device.invoke("scan-demo", bool(kind))
+        self.armed = True
+        self.device.set_global_property("HubUi", "status", "已识别 · 请装入一个空槽，等待自动写入（模拟）")
         self.log("模拟识别标签：" + ("PETG / 71CCE1FF" if kind else "PLA / 00CE9BFF"))
+
+    def insert(self, slot):
+        if not self.armed or self.pending:
+            self.log("未写入：请先扫描，或等待当前写入结束")
+            return
+        if self.profile == 1 and self.scenario == 4 and int(slot) == 0:
+            self.log("官方 RFID 槽位不可覆盖")
+            return
+        self.armed = False
+        record = field(self.device.get_global_property("AppState", "spool-staging-info"),"spool-record")
+        self.log(f"模拟稳定装料事件：槽 {int(slot)+1}，自动匹配目标")
+        if self.profile:
+            self.hub_write(0,slot,field(record,"material-type"),field(record,"color-code"),field(record,"brand") or "Generic","")
+        else:
+            self.staged_write(slot)
+
+    def unknown(self):
+        self.armed=False
+        uid = "04A1B2C3"
+        if uid in self.library:
+            r = self.library[uid]
+            tint = slint.Color({"red":int(r["rgba"][:2],16),"green":int(r["rgba"][2:4],16),"blue":int(r["rgba"][4:6],16),"alpha":255})
+            self.device.invoke("scan-record",uid,r["brand"],r["material"],r["rgba"],tint,r["preset"])
+            self.armed=True
+            self.log("本地库命中 RFID："+uid+" / "+r["brand"])
+        else:
+            self.device.invoke_global("AppState","new-tag-scanned",uid)
+            self.device.set_property("preview-mode",0)
+            self.log("未知 RFID：请在设备窗口选择耗材、颜色和品牌后保存")
+
+    def multi_ams(self):
+        self.change_profile(0)
+        self.device.invoke("multi-ams-demo")
+        self.log("模拟 4 台 AMS + 2 台 HT，点击设备条切换")
+
+    def register_tag(self,tag,preset,material,color,brand):
+        if not preset or not material:
+            return "请选择耗材"
+        self.library[tag]={"preset":preset,"material":material,"rgba":color,"brand":brand}
+        if self.library_path:
+            self.library_path.write_text(json.dumps(self.library,ensure_ascii=False,indent=2),encoding="utf-8")
+        self.device.invoke("home")
+        self.unknown()
+        self.log("本地 UID 对应关系已保存；再次扫描可直接识别")
+        return ""
 
     def page(self, mode):
         self.device.invoke("home")
@@ -177,6 +239,16 @@ class Simulator:
         return result
 
     def self_test(self):
+        for profile in (0,1,2):
+            self.change_profile(profile)
+            self.scan(1)
+            self.insert(1)
+            assert self.writes[-1]["slot"] == 1 and self.writes[-1]["type"] == "PETG"
+        self.scan(0)
+        self.unknown()
+        assert not self.armed, "Unknown tag must cancel the previous pending identity"
+        assert self.register_tag("04A1B2C3","GFA00","PLA","00CE9BFF","SUNLU") == ""
+        assert self.library["04A1B2C3"]["brand"] == "SUNLU"
         for profile in (0, 1, 2):
             self.change_profile(profile)
             self.scenario = 0

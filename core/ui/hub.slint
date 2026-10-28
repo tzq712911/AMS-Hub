@@ -1,55 +1,86 @@
 import { AppState, SpoolStagingState } from "app.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
-import { ComboBox } from "std-widgets.slint";
-
-export struct HubSlot { box-id:int, index:int, label:string, rgba:string, locked:bool }
+import { ScrollView } from "std-widgets.slint";
+export struct HubSlot { box-id:int,index:int,label:string,rgba:string,locked:bool,brand:string,material:string,tint:color }
 export global HubUi {
+    in-out property <int> active-brand:0;
     in-out property <bool> visible:false;
     in-out property <bool> busy:false;
+    in-out property <bool> settings-open:false;
     in-out property <string> status;
     in-out property <string> brand-name:"AMS-Hub";
     in-out property <string> host;
     in-out property <[HubSlot]> slots;
+    callback select-brand(int);
+    callback scan(material:string,rgba:string,vendor:string);
     callback refresh;
     callback apply(box-id:int,index:int,material:string,rgba:string,vendor:string,subtype:string)->string;
+}
+export component BrandTabs inherits Rectangle {
+    height:34px;width:174px;background:transparent;
+    HorizontalLayout {
+        spacing:4px;
+        for b in [0,1,2]: Rectangle {
+            width:54px;border-radius:7px;background:HubUi.active-brand==b?ConsoleTheme.field:ConsoleTheme.background;
+            border-width:HubUi.active-brand==b?1px:0px;border-color:ConsoleTheme.accent;
+            Image {x:13px;y:3px;width:28px;height:28px;source:b==0?@image-url("brands/bambu.png"):b==1?@image-url("brands/snapmaker.png"):@image-url("brands/anycubic.png");image-fit:contain;}
+            TouchArea {enabled:!HubUi.busy;clicked=>{HubUi.active-brand=b;HubUi.visible=b!=0;HubUi.select-brand(b);}}
+        }
+    }
 }
 export component HubPage inherits Rectangle {
     background:ConsoleTheme.background;
     property <int> selected:-1;
+    property <int> page:0;
     property <string> error;
     property <string> material:AppState.spool-staging-info.spool-record.material-type;
     property <string> rgba:AppState.spool-staging-info.spool-record.color-code;
     VerticalLayout {
-        padding:10px; spacing:8px;
+        padding:10px;spacing:8px;
         HorizontalLayout {
-            height:35px;
-            ConsoleButton {width:48px;text:"‹";clicked=>{HubUi.visible=false;}}
-            ConsoleLabel {text:HubUi.brand-name;font-size:21px;}
-            ConsoleButton {width:70px;text:"读取";enabled:!HubUi.busy;clicked=>{root.selected=-1;HubUi.refresh();}}
+            height:34px;spacing:6px;
+            BrandTabs {}
+            ConsoleLabel {text:HubUi.active-brand==1?"U1":"ACE";font-size:18px;}
+            ConsoleButton {width:58px;text:"读取";enabled:!HubUi.busy;clicked=>{root.selected=-1;HubUi.refresh();}}
+            ConsoleButton {width:52px;text:"设置";clicked=>{HubUi.settings-open=true;}}
         }
-        ConsoleLabel {text:HubUi.host==""?"在设置网页配置多品牌连接":HubUi.host;font-size:13px;color:ConsoleTheme.muted;height:22px;}
         HorizontalLayout {
-            height:42px;
-            for slot[i] in HubUi.slots: ConsoleButton {
-                text:slot.label+(slot.locked?" 🔒":"");
-                primary:root.selected==i;
-                enabled:!HubUi.busy&&!slot.locked;
-                clicked=>{root.selected=i;root.error="";}
+            height:27px;
+            ConsoleLabel {text:HubUi.host==""?"此品牌尚未配置连接":HubUi.host;font-size:12px;color:ConsoleTheme.muted;}
+            ConsoleButton {width:40px;text:"‹";enabled:root.page>0;clicked=>{root.page = root.page - 1;root.selected=-1;}}
+            ConsoleLabel {width:50px;text:(root.page+1)+" / "+Math.max(1,Math.ceil(HubUi.slots.length/4));font-size:12px;}
+            ConsoleButton {width:40px;text:"›";enabled:(root.page+1)*4<HubUi.slots.length;clicked=>{root.page+=1;root.selected=-1;}}
+        }
+        HorizontalLayout {
+            height:147px;spacing:7px;
+            for offset in [0,1,2,3]: Rectangle {
+                property <int> i:root.page*4+offset;
+                property <HubSlot> slot:HubUi.slots[i];
+                background:ConsoleTheme.panel;border-radius:10px;
+                border-width:root.selected==i?2px:0px;border-color:ConsoleTheme.accent;
+                VerticalLayout {
+                    padding:8px;spacing:6px;
+                    ConsoleLabel {text:HubUi.active-brand==1?"T"+(slot.index+1):"ACE "+(slot.box-id+1)+" · "+(slot.index+1);height:20px;font-size:13px;horizontal-alignment:center;color:ConsoleTheme.muted;}
+                    HorizontalLayout {alignment:center;Rectangle {width:46px;height:46px;border-radius:23px;border-width:4px;border-color:#777;background:slot.tint;Rectangle {x:17px;y:17px;width:12px;height:12px;border-radius:6px;background:#343434;}}}
+                    ConsoleLabel {text:slot.material==""?"未设置":slot.material;height:28px;horizontal-alignment:center;}
+                    ConsoleLabel {text:slot.locked?"不可覆盖":slot.brand==""?"本地品牌未记录":slot.brand;height:18px;font-size:12px;horizontal-alignment:center;color:ConsoleTheme.muted;}
+                }
+                TouchArea {enabled:i<HubUi.slots.length&&!HubUi.busy&&!slot.locked;clicked=>{root.selected=i;root.error="";}}
             }
         }
         Rectangle {
-            background:ConsoleTheme.panel;border-radius:10px;
-            VerticalLayout {
-                padding:10px;spacing:4px;
-                ConsoleLabel {text:AppState.spool-staging-state==SpoolStagingState.Empty?"请先扫描已绑定耗材标签":"已扫描 · "+root.material+" · "+root.rgba;font-size:16px;}
-                ConsoleLabel {text:"同步类型、颜色；U1 使用 Generic 品牌。此版本不写 K 值。";font-size:12px;color:ConsoleTheme.muted;wrap:word-wrap;}
-                ConsoleLabel {text:root.error!=""?root.error:HubUi.status;font-size:13px;wrap:word-wrap;}
+            background:ConsoleTheme.panel;border-radius:9px;
+            HorizontalLayout {
+                padding:9px;spacing:8px;
+                VerticalLayout {
+                    ConsoleLabel {text:root.error!=""?root.error:HubUi.status;font-size:13px;wrap:word-wrap;}
+                    ConsoleLabel {text:AppState.spool-staging-state==SpoolStagingState.Empty?"靠近读卡区扫描；未知标签可在屏幕建档":"已识别 · "+AppState.spool-staging-info.spool-record.brand+" "+root.material;font-size:12px;color:ConsoleTheme.muted;}
+                }
+                ConsoleButton {width:84px;text:HubUi.busy?"处理中":"手动写入";primary:true;
+                    enabled:!HubUi.busy&&root.selected>=0&&root.selected<HubUi.slots.length&&AppState.spool-staging-state!=SpoolStagingState.Empty;
+                    clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,AppState.spool-staging-info.spool-record.brand==""?"Generic":AppState.spool-staging-info.spool-record.brand,"");}
+                }
             }
-        }
-        ConsoleButton {
-            height:42px;primary:true;text:HubUi.busy?"等待机器读回…":"确认写入所选槽位";
-            enabled:!HubUi.busy&&root.selected>=0&&root.selected<HubUi.slots.length&&AppState.spool-staging-state!=SpoolStagingState.Empty;
-            clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,"Generic","");}
         }
     }
 }
