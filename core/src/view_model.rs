@@ -2848,6 +2848,7 @@ impl FrameworkObserver for ViewModel {
         } else {
             ip_url
         };
+        term_info!("网页配置地址: {}", final_url);
         self.ui_weak
             .unwrap()
             .global::<crate::app::FrameworkState>()

@@ -480,6 +480,8 @@ async fn main(spawner: Spawner) {
 
     Framework::wait_for_wifi(&framework).await; // this is mostly to start the web app after all tasks initialized and won't miss this start message
     framework.borrow_mut().start_web_app(sta_stack, framework::framework::WebConfigMode::STA);
+    term_info!("网页配置密钥: {}", framework.borrow().web_config_key);
+    term_info!("请用浏览器访问上方地址，输入密钥后配置打印机");
 
     loop {
         Timer::after(Duration::from_secs(60)).await;
