@@ -540,7 +540,7 @@ impl Store {
     }
 
     pub async fn try_restore_from_backup(&self, view_model: Rc<RefCell<ViewModel>>) -> Result<(), String> {
-        info!("Trying to restore from backup if '/store.bak' exists");
+        info!("尝试从备份 '/store.bak' 恢复");
         let file_store = self.framework.borrow().file_store();
         let mut file_store = file_store.lock().await;
 
@@ -551,7 +551,7 @@ impl Store {
             .map_err(|e| format!("Error checking if '/store.bak' exists : {e}"))?;
 
         if !file_exist {
-            info!("file '/store.bak' doesn't exist, no need to restore");
+            info!("备份文件 '/store.bak' 不存在，无需恢复");
             return Ok(());
         }
 
@@ -751,7 +751,7 @@ pub async fn store_task(framework: Rc<RefCell<Framework>>, store: Rc<Store>, vie
                 }
             }
         }
-        debug!("Started store_task");
+        debug!("启动存储任务");
         let file_store = framework.borrow().file_store();
         match CsvDb::<SpoolRecord, _, FILE_STORE_MAX_DIRS, FILE_STORE_MAX_FILES>::new(file_store.clone(), "/store/spools", 1024, 200, STORE_VER).await
         {
@@ -781,7 +781,7 @@ pub async fn store_task(framework: Rc<RefCell<Framework>>, store: Rc<Store>, vie
                                     .set(db)
                                     .map_err(|_e| "Fatal Internal Error: Can't assign spools_db to once_cell?")
                                     .unwrap();
-                                term_info!("Opened spools database");
+                                term_info!("已打开耗材数据库");
 
                                 if current_version > db_version {
                                     info!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");

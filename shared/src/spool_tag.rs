@@ -255,7 +255,7 @@ async fn nfc_task(
     let mut pn532: pn532::Pn532<_, _, 64> = pn532::Pn532::new(interface, timer);
     // pn532.wake_up().await.unwrap();
 
-    info!("Configuring pn532");
+    info!("配置 PN532");
 
     let mut initialization_succeeded = false;
     let mut successful_retry = 0;
@@ -263,7 +263,7 @@ async fn nfc_task(
     for retry in 0..=retries {
         if retry % 20 == 0 {
             if retry != 0 {
-                term_error!("Challenging PN532 Initialization ({})", retries);
+                term_error!("PN532 初始化重试 ({})", retries);
             }
             pn532.wake_up().await.unwrap();
             Timer::after(Duration::from_millis(100)).await
@@ -280,11 +280,11 @@ async fn nfc_task(
             if retry != retries {
                 Timer::after(Duration::from_millis(100)).await;
             } else {
-                term_error!("Error initializing Tag Reader {:?}", e);
+                term_error!("初始化读卡器失败 {:?}", e);
                 term_error!("  > Check Troubleshooting Guide in GitHub repo !!!");
             }
         } else {
-            info!("Initialized Tag Reader successfully");
+            info!("读卡器初始化成功");
             initialization_succeeded = true;
             successful_retry = retry;
             break;
@@ -306,19 +306,19 @@ async fn nfc_task(
         )
         .await
     {
-        trace!("PN532 Firmware Version response: {:?}", fw);
+        trace!("PN532 固件版本响应: {:?}", fw);
         term_info!(
-            "Established communication with Tag Reader ({})",
+            "已与读卡器建立通信（{}）",
             successful_retry
         );
         spool_tag_rc.borrow().notify_pn532_status(true);
     } else {
-        term_error!("Failed to communicate with Tag Reader");
+        term_error!("与读卡器通信失败");
         spool_tag_rc.borrow().notify_pn532_status(false);
         return;
     }
 
-    info!("Entering wait for tag loop in nfc task");
+    info!("进入等待刷卡循环");
 
     let mut curr_operation_with_tag = Some(TagOperation::ReadTag(ReadTagRequest {}));
 

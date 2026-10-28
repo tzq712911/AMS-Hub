@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SpoolEase Configuration</title>
+    <title>AMShub 配置</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/png" href="favicon-48x48.png" sizes="48x48">
   </head>
   <body>
-    <h1>SpoolEase Configuration</h1>
-    <h3 style="text-align: center;">Most configurations require device restart</h3>
+    <h1>AMShub 配置</h1>
+    <h3 style="text-align: center;">大多数配置需要重启设备生效</h3>
 
     <div class="section" id="hub-section">
       <h2>AMS-Hub 多品牌连接（V2）</h2>
@@ -18,21 +18,19 @@
       <p>Anycubic 使用打印机本地签发的客户端凭据，不上传云端。ca_pem 留空时按该设备局域网协议使用自签名 TLS；有可信 CA 时可填入并配置 tls_name。</p>
       <button id="hub-apply" onclick="applyHubSettings()">保存多品牌配置</button>
     </div>
-    <!-- Security Key Section -->
+    <!-- 安全密钥 Section -->
     <div class="section" id="security-section">
-      <h2 class="section-title">Security Key</h2>
-      <p>IMPORTANT: A security key is required to configure the settings below.
-         You can find it in the settings screen beneath the terminal and main screens.
-         If it’s not visible, swipe vertically on the SpoolEase console display to reveal it.</p>
+      <h2 class="section-title">安全密钥</h2>
+      <p>重要：配置以下设置前需要安全密钥。你可以在终端和主屏下方的设置页面找到它；如果没看到，请在设备屏幕上上下滑动显示。</p>
       <div id="verify-key-section">
         <div class="form-row">
           <label for="security-key"
-            >Key: * <span>Fill and verify key before configuring</span></label
+            >密钥：* <span>配置前请填写并验证密钥</span></label
           >
           <input
             type="text"
             id="security-key"
-            placeholder="Enter security key"
+            placeholder="请输入安全密钥"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
@@ -44,21 +42,21 @@
           onclick="applyKeyFetchConfigs()"
           disabled
         >
-          Verify Key & Load Config
+          验证密钥并加载配置
         </button>
         <label class="feedback-label" id="security-key-feedback"></label>
       </div>
       <div id="set-fixed-key-section">
         <div class="form-row" style="margin-top: 20px">
           <label for="fixed-security-key"
-            >Set a Fixed Security Key:<span
-              >Optional, applies after restart</span
+            >设置固定安全密钥：<span
+              >可选，重启后生效</span
             ></label
           >
           <input
             type="text"
             id="fixed-security-key"
-            placeholder="Enter fixed security key"
+            placeholder="请输入固定安全密钥"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
@@ -70,32 +68,32 @@
           onclick="applyFixedSecurityKeySettings()"
           disabled
         >
-          Apply
+          应用
         </button>
       </div>
     </div>
 
-    <!-- WiFi Credentials Section -->
+    <!-- WiFi 凭据 Section -->
     <div class="section" id="wifi-section">
-      <h2 class="section-title">WiFi Credentials</h2>
+      <h2 class="section-title">WiFi 凭据</h2>
 
       <div class="form-row">
         <label for="wifi-ssid">SSID: *</label>
         <input
           type="text"
           id="wifi-ssid"
-          placeholder="Enter WiFi network name"
+          placeholder="请输入 WiFi 网络名称"
           autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
         />
       </div>
 
       <div class="form-row">
-        <label for="wifi-password">Password: *</label>
+        <label for="wifi-password">密码：*</label>
         <div class="password-container">
           <input
             type="password"
             id="wifi-password"
-            placeholder="Enter WiFi password"
+            placeholder="请输入 WiFi 密码"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
           <span
@@ -113,16 +111,16 @@
         onclick="applyWiFiSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
-    <!-- Device Name -->
+    <!-- 设备名称 -->
     <div class="section" id="device-name-section">
-      <h2 class="section-title">Device Name</h2>
+      <h2 class="section-title">设备名称</h2>
       <div class="form-row">
         <label for="device-name"
-          >Device Name:<span>mDNS (http://devicename.local)</span></label
+          >设备名称：<span>mDNS (http://devicename.local)</span></label
         >
         <input
           type="text"
@@ -130,7 +128,7 @@
           pattern="[a-zA-Z0-9-]{1,63}"
           oninput="filterDnsName(this)"
           id="device-name"
-          placeholder="Enter Device Name"
+          placeholder="请输入设备名称"
           autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
         />
       </div>
@@ -142,42 +140,42 @@
         onclick="applyDeviceNameSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
-    <!-- Display Settings Section -->
+    <!-- 显示设置 Section -->
     <div class="section" id="display-section">
-      <h2 class="section-title">Display Settings</h2>
+      <h2 class="section-title">显示设置</h2>
 
       <div class="form-row">
-        <label for="dimming-timeout">Dimming Timeout (in seconds): *</label>
+        <label for="dimming-timeout">调暗超时（秒）：*</label>
         <input
           type="number"
           id="dimming-timeout"
           min="0"
-          placeholder="Enter timeout"
+          placeholder="请输入超时时间"
         />
       </div>
 
       <div class="form-row">
-        <label for="dimming-percent">Dimming Percent (0-100%): *</label>
+        <label for="dimming-percent">调暗百分比（0-100%）：*</label>
         <input
           type="number"
           id="dimming-percent"
           min="0"
           max="100"
-          placeholder="Enter percentage"
+          placeholder="请输入百分比"
         />
       </div>
 
       <div class="form-row">
-        <label for="blackout-timeout">Blackout Timeout (in seconds): *</label>
+        <label for="blackout-timeout">熄屏超时（秒）：*</label>
         <input
           type="number"
           id="blackout-timeout"
           min="0"
-          placeholder="Enter timeout"
+          placeholder="请输入超时时间"
         />
       </div>
 
@@ -188,13 +186,13 @@
         onclick="applyDisplaySettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
-    <!-- Printer Settings Section -->
+    <!-- 打印机设置 Section -->
     <div class="section" id="printer-section">
-        <h2 class="section-title">Printer Settings</h2>
+        <h2 class="section-title">打印机设置</h2>
 
         <div id="printers-container">
           <!-- Printer forms will be added here dynamically -->
@@ -208,27 +206,27 @@
             onclick="applyPrintersSettings()"
             disabled
           >
-            Apply
+            应用
           </button>
         </div>
       </div>
 
-      <!-- Scale Settings -->
+      <!-- 称重设置 -->
       <div class="section" id="scale-section">
-        <h2 class="section-title">Scale Settings</h2>
+        <h2 class="section-title">称重设置</h2>
         <div class="form-row" style="display: flex; flex-direction: row; gap: 6px;">
-          <input type="Checkbox" id="scale-available"><label for="scale-available">SpoolEase Scale Available</label>
+          <input type="Checkbox" id="scale-available"><label for="scale-available">启用称重（SpoolEase）</label>
         </div>
 
         <div class="form-row">
           <label for="scale-key"
-            >Scale Security Key: *
+            >称重安全密钥：*
             </label
           >
           <input
             type="text"
             id="scale-key"
-            placeholder="Enter Scale Security Key - MUST NOT BE EMPTY"
+            placeholder="请输入称重安全密钥 - 不能为空"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
@@ -236,22 +234,22 @@
 
         <div class="form-row">
           <label for="scale-name"
-            >Scale Device Name:<span
-              >Optional, in case of several scales</span
+            >称重设备名称：<span
+              >可选，多台称重时用于区分</span
             ></label
           >
           <input
             type="text"
             id="scale-name"
-            placeholder="Enter Scale Device Name"
+            placeholder="请输入称重设备名称"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
 
         <div class="form-row">
           <label
-          >Scale IP Address:<span
-            >Optional, instead of auto discovery</span
+          >称重 IP 地址：<span
+            >可选，替代自动发现</span
           ></label
         >
         <div class="ip-container">
@@ -289,7 +287,7 @@
           </div>
         </div>
         <div class="error-message ip-error">
-          IP requires name to be provided
+          填写 IP 需同时提供名称
         </div>
       </div>
 
@@ -300,20 +298,20 @@
         onclick="applyScaleSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
     <!-- Filaments Section -->
     <div class="section" id="filaments-section">
-      <h2 class="section-title">Custom Slicer Filaments</h2>
+      <h2 class="section-title">自定义切片耗材</h2>
 
       <div class="form-row">
         <div style="display: flex; align-items: center; gap: 10px;>
             <label for="custom-filaments-text"
-              >Custom Filaments CSV:</label
+              >自定义耗材 CSV：</label
             >
-            <button class="add-btn" style="margin-left:auto" type="button" onclick="selectAndProcessCustomFilaments()">Create List (On Desktop)</button>
+            <button class="add-btn" style="margin-left:auto" type="button" onclick="selectAndProcessCustomFilaments()">生成列表（在电脑上操作）</button>
             <input id="folderInput" type="file"  style="display:none" webkitdirectory multiple onchange="processFiles(event)" />
         </div>
         <textarea
@@ -329,9 +327,9 @@ Pda16356,SUNLU PLA PLA + 2,190,240,PLA"
         <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
           <span id="custom-filaments-chars-left" class="csv-chars-left">0</span>
         </div>
-        <p><b>First, add your custom filaments <a href="https://wiki.bambulab.com/en/bambu-studio/create-filament">in the slicer</a>.</b></p>
+        <p><b>首先，<a href="https://wiki.bambulab.com/en/bambu-studio/create-filament">在切片软件中</a>添加你的自定义耗材。</b></p>
         
-        <p>Then, press <b>"Create List"</b> Button and Select Folder as Explained Here:</p>
+        <p>然后点击 <b>"生成列表"</b> 按钮，并按以下说明选择文件夹：</p>
         <label>On MacOS</label>
           <p class="i0">/Users</p>
           <p class="i1">/{user-name}</p>
@@ -355,18 +353,18 @@ Pda16356,SUNLU PLA PLA + 2,190,240,PLA"
         onclick="applyFilamentsSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
     <!-- Spools Weights Section -->
     <div class="section" id="spools-section">
-      <h2 class="section-title">My Spools List</h2>
+      <h2 class="section-title">我的耗材盘列表</h2>
 
       <div class="form-row">
         <label for="spools-text"
-          >Spools CSV:<a href="/spools-catalog" target="_blank"
-            >SpoolEase Spools Catalog</a
+          >耗材盘 CSV：<a href="/spools-catalog" target="_blank"
+            >SpoolEase 耗材盘目录</a
           ></label
         >
         <textarea
@@ -378,7 +376,7 @@ eSUN - Plastic (Clear) - 209g,209
 ProtoPasta 500g - Cardboard - 84g,84"
         ></textarea>
         <p id="spools-chars-left" class="csv-chars-left">abcd</p>
-        <label>Sources for spool weights (sometimes with photos)</label>
+        <label>耗材盘重量来源（部分含图片）</label>
         <ul>
           <li class="link-bullet">
             <a target="_blank" href="https://www.onlyspoolz.com/portfolio/"
@@ -421,7 +419,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
           onclick="applySpoolsSettings()"
           disabled
         >
-          Apply
+          应用
         </button>
       </div>
     </div>
@@ -430,10 +428,10 @@ ProtoPasta 500g - Cardboard - 84g,84"
     <!-- OTA Section -->
 
     <div class="section" id="ota-section">
-      <h2 class="section-title">Network Firmware Upgrade</h2>
+      <h2 class="section-title">网络固件升级</h2>
 
       <div class="form-row">
-        <label for="curr-version">Current firmware version. For none release versions (beta/debug), update from console:</label>
+        <label for="curr-version">当前固件版本。非正式版本（beta/debug）请从控制台升级：</label>
         <p class="status-text" id="curr-version"></p>
       </div>
 
@@ -445,11 +443,11 @@ ProtoPasta 500g - Cardboard - 84g,84"
         disabled
         style="margin-bottom: 10px"
       >
-        Start Network Upgrade
+        开始网络升级
       </button>
 
       <div class="form-row">
-        <label for="ota-status">OTA Status:</label>
+        <label for="ota-status">OTA 状态：</label>
         <div style="display: flex; flex-direction: row;align-items: center;">
           <p style="height: 3rem" class="status-text" id="ota-status"></p>
           <button
@@ -460,15 +458,15 @@ ProtoPasta 500g - Cardboard - 84g,84"
             onclick="fetchOtaStatus()"
             disabled
           >
-            Update<br/>Status
+            更新<br/>状态
           </button>
         </div>
       </div>
     </div>
 
-    <!-- General Section -->
+    <!-- 通用 Section -->
     <div class="section" id="general-section">
-      <h2 class="section-title">General</h2>
+      <h2 class="section-title">通用</h2>
 
       <button
         id="restart-device"
@@ -477,7 +475,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
         onclick="restartDevice()"
         disabled
       >
-        Restart Device
+        重启设备
       </button>
     </div>
 
@@ -532,12 +530,12 @@ ProtoPasta 500g - Cardboard - 84g,84"
           const encryptedText = await response.text();
           const decryptedText = decrypt(encryptionKey, encryptedText);
           const result = JSON.parse(decryptedText);
-          alert(`Settings applied successfully, restart is required!!!`);
+          alert(`设置已应用成功，需重启设备！`);
           if (applyButton) {
             applyButton.disabled = true;
           }
         } catch (error) {
-          alert(`Failed to apply settings: ${error.message}`);
+          alert(`应用设置失败：${error.message}`);
         }
       }
 
@@ -564,13 +562,13 @@ ProtoPasta 500g - Cardboard - 84g,84"
           document.getElementById("scale-apply").disabled = true;
           document.getElementById("spools-apply").disabled = true;
           if (response.status == 400) {
-            document.getElementById("security-key-feedback").textContent = "Security Key is incorrect";
+            document.getElementById("security-key-feedback").textContent = "安全密钥错误";
             document.getElementById("ota-request").disabled = true;
             document.getElementById("ota-status-update").disabled = true;
             document.getElementById("restart-device").disabled = true;
             return;
           } else if (response.ok) {
-            document.getElementById("security-key-feedback").textContent = "Security Key validated";
+            document.getElementById("security-key-feedback").textContent = "安全密钥已验证";
             document.getElementById("verify-key-button").disabled = true;
             document.getElementById("ota-request").disabled = false;
             document.getElementById("ota-status-update").disabled = false;
@@ -578,14 +576,14 @@ ProtoPasta 500g - Cardboard - 84g,84"
           }
         } catch (error) {
           document.getElementById("security-key-feedback").textContent =
-            `Failed to check key, try again (${error.message})`;
+            `检查密钥失败，请重试（${error.message}）`;
           return;
         }
         try {
           await fetchSectionConfigs();
         } catch (error) {
           document.getElementById("security-key-feedback").textContent +=
-            " but Failed to Load Configs";
+            "，但加载配置失败";
         }
       }
 
@@ -645,11 +643,11 @@ ProtoPasta 500g - Cardboard - 84g,84"
       }
 
       function requestOta() {
-        if (confirm("Do you want to upgrade firmware now?")) {
+        if (confirm("是否立即升级固件？")) {
           const data = { request: "Update" };
           sendData("/api/ota-request", data, 1);
           alert(
-            "Request to start network upgrade sent, press [Updat Status] to see progress",
+            "已发送网络升级请求，点击[更新状态]查看进度",
           );
         }
       }
@@ -688,7 +686,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
         const data = {};
         sendData("/api/reset-device", data, 1);
         alert(
-          "Device restarted. Reactivate Web Config from device and refresh page to continue configuration",
+          "设备已重启。请从设备重新激活 Web 配置并刷新页面继续。",
         );
       }
 
@@ -810,7 +808,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
       }
 
       // ==========================================
-      // Printer Settings Functions
+      // 打印机设置 Functions
       // ==========================================
       // Template for the printer form
       function createPrinterTemplate(id, isRemovable = true) {
@@ -820,31 +818,31 @@ ProtoPasta 500g - Cardboard - 84g,84"
 
         template.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px;">
-                  <h3>Printer <span class="printer-number">${id}</span></h3>
-                  ${isRemovable ? '<button class ="remove-btn" type="button" onclick="removePrinter(' + id + ')">Remove</button>' : ""}
-                  <button class="add-btn" style="margin-left:auto" type="button" onclick="addPrinterAbove(this)">Add Printer Above</button>
+                  <h3>打印机 <span class="printer-number">${id}</span></h3>
+                  ${isRemovable ? '<button class ="remove-btn" type="button" onclick="removePrinter(' + id + ')">移除</button>' : ""}
+                  <button class="add-btn" style="margin-left:auto" type="button" onclick="addPrinterAbove(this)">在上方添加打印机</button>
                 </div>
 
                 <div class="form-row">
-                    <label>Serial Number: *</label>
-                    <input type="text" class="serial" placeholder="Enter serial number">
-                    <div class="error-message serial-error">Serial number is required</div>
+                    <label>序列号：*</label>
+                    <input type="text" class="serial" placeholder="请输入序列号">
+                    <div class="error-message serial-error">序列号为必填项</div>
                 </div>
 
                 <div class="form-row">
-                    <label>Access Code: *</label>
-                    <input type="text" class="access-code" placeholder="Enter access code">
-                    <div class="error-message access-code-error">Access code is required</div>
+                    <label>访问码：*</label>
+                    <input type="text" class="access-code" placeholder="请输入访问码">
+                    <div class="error-message access-code-error">访问码为必填项</div>
                 </div>
 
                 <div class="form-row">
-                    <label>Name:<span>Also used for multiprinter select</span></label>
-                    <input type="text" class="name" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Enter printer name">
-                    <div class="error-message name-error">Name is required when IP is provided</div>
+                    <label>名称：<span>也用于多打印机选择</span></label>
+                    <input type="text" class="name" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="请输入打印机名称">
+                    <div class="error-message name-error">填写 IP 时需提供名称</div>
                 </div>
 
                 <div class="form-row">
-                    <label>IP Address:<span>If set, requires also name</span></label>
+                    <label>IP 地址：<span>如填写，需同时提供名称</span></label>
                     <div class="ip-container">
                         <div class="ip-segment">
                             <input type="text" class="ip-part" maxlength="3" placeholder="000">
@@ -859,40 +857,40 @@ ProtoPasta 500g - Cardboard - 84g,84"
                             <input type="text" class="ip-part" maxlength="3" placeholder="000">
                         </div>
                     </div>
-                    <div class="error-message ip-error">IP requires name to be provided</div>
+                    <div class="error-message ip-error">填写 IP 需同时提供名称</div>
                 </div>
 
                 <div class = "form-row" >
                   <div style="display: flex; align-items: center; margin-bottom: 0px; margin-top: 0px; padding-bottom: 0px;">
                     <input class="track-print-consume" type="checkbox" id="tack-print-consume" checked>
-                    <label for="track-print-consume" style="margin-top: 0px; margin-bottom:0px; padding-left: 2px;">Track Prints Filament Consumption</label>
+                    <label for="track-print-consume" style="margin-top: 0px; margin-bottom:0px; padding-left: 2px;">跟踪打印耗材消耗</label>
                   </div>
                   <div style="display: flex; align-items: center; margin-left: 1.2rem; margin-bottom: 0px; margin-top: 6px; padding-bottom: 0px;">
-                    <label for="fetch-3mf" style="margin-top: 0px; margin-bottom:0px; padding-left: 2px;">Default Fetch 3MF From</label>
+                    <label for="fetch-3mf" style="margin-top: 0px; margin-bottom:0px; padding-left: 2px;">默认 3MF 获取来源</label>
                     <select style="padding-right: 12px; height: 20px; font-size: 1rem; margin-left: 12px;" class="fetch-3mf" type="checkbox" id="fetch-3mf">
-                      <option value="printer-ftp">FTP (No Authorization)&nbsp;</option>
-                      <option value="cloud-http">HTTP (Only in Cloud)</option>
+                      <option value="printer-ftp">FTP（无授权）&nbsp;</option>
+                      <option value="cloud-http">HTTP（仅云端）</option>
                     </select>
                   </div>
                 </div>
                 <div class = "form-row">
                   <div style="display: flex; align-items: center; margin-bottom: 0px;">
                     <input class="auto-restore-k" type="checkbox" id="auto-restore-k">
-                    <label for="auto-restore-k" style="margin-top: 0px; margin-bottom: 0px; padding-left: 2px;">Auto Restore K Values On Printer Restart</label>
+                    <label for="auto-restore-k" style="margin-top: 0px; margin-bottom: 0px; padding-left: 2px;">打印机重启时自动恢复 K 值</label>
                   </div>
-                  <span>Use only with X1 printer, if it forgets K on restart.</span>
+                  <span>仅用于 X1 打印机（重启会丢失 K 值时）。</span>
                 </div>
                 <div class = "form-row">
                   <div style="display: flex; align-items: center; margin-bottom: 0px;">
                     <input class="printer-log-filter" type="checkbox" id="printer-log-filter">
-                    <label for="printer-log-filter" style="margin-top: 6px; padding-left: 2px;">Enable Extra  Printer  Logs</label>
+                    <label for="printer-log-filter" style="margin-top: 6px; padding-left: 2px;">启用额外打印机日志</label>
                   </div>
-                  <span >Only check if necessary; this will slow down the system!</span>
+                  <span >仅在必要时勾选，这会拖慢系统！</span>
                 </div>
 
                 <div style="display: flex; align-items: center;">
-                  <button class="default-btn" type="button" onclick="setAsDefault(${id})">Set as Default</button>
-                  <button class="add-btn" style="margin-left:auto" type="button" onclick="addPrinterBelow(this)">Add Printer Below</button>
+                  <button class="default-btn" type="button" onclick="setAsDefault(${id})">设为默认</button>
+                  <button class="add-btn" style="margin-left:auto" type="button" onclick="addPrinterBelow(this)">在下方添加打印机</button>
                 </div>
             `;
 
@@ -1081,7 +1079,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
           form.classList.remove("default");
           const defaultBtn = form.querySelector(".default-btn");
           defaultBtn.classList.remove("active");
-          defaultBtn.textContent = "Set as Default";
+          defaultBtn.textContent = "设为默认";
         });
 
         // Set this printer as default
@@ -1091,7 +1089,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
         printerForm.classList.add("default");
         const defaultBtn = printerForm.querySelector(".default-btn");
         defaultBtn.classList.add("active");
-        defaultBtn.textContent = "Default Printer";
+        defaultBtn.textContent = "默认打印机";
 
         defaultPrinter = id;
       }
@@ -1131,7 +1129,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
 
           if (hasIPValue && !ipFilled) {
             form.querySelector(".ip-error").textContent =
-              "All IP fields must be filled";
+              "所有 IP 字段都必须填写";
             form.querySelector(".ip-error").style.display = "block";
             isValid = false;
           }
@@ -1149,7 +1147,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
       function generatePrinterData() {
         if (!validatePrinterForms()) {
           alert(
-            "Please fix the printer validation errors before applying settings.",
+            "请先修正打印机的校验错误，再应用设置。",
           );
           return null;
         }
@@ -1256,7 +1254,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
       function applySpoolsSettings() {
         const spools = document.getElementById("spools-text").value;
         if (!validateCSV(spools, /^.*$/, /^\d{1,4}$/)) {
-          alert("Invalid spools information");
+          alert("耗材盘信息无效");
           return;
         }
         const applyButton = document.getElementById("spools-apply");
@@ -1305,7 +1303,7 @@ ProtoPasta 500g - Cardboard - 84g,84"
       function applyFilamentsSettings() {
         const custom_filaments = document.getElementById("custom-filaments-text").value;
         if (!validateCSV5(custom_filaments, /^.*$/, /^.*$/, /^\d+$/, /^\d+$/, /^.*$/)) {
-          alert("Invalid custom filaments information");
+          alert("自定义耗材信息无效");
           return;
         }
         const applyButton = document.getElementById("filaments-apply");

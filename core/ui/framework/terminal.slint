@@ -91,6 +91,23 @@ export component Terminal inherits Rectangle {
         text: root.text;
     }
 
+    // 垂直滑动滚动（触摸拖动），原版可滑动、本实现回归后补回
+    swipe-area := SwipeGestureHandler {
+        width: root.width - 40px;
+        height: root.height;
+        handle-swipe-up: true;
+        handle-swipe-down: true;
+        handle-swipe-left: false;
+        handle-swipe-right: false;
+        swiped => {
+            if scroll-offset-from-end == 0 {
+                locked-offset = offset-for-end;
+            }
+            // 手指上滑 → 看更早日志（增大 scroll-offset-from-end）；下滑 → 看最新
+            scroll-offset-from-end = Math.max(0px, scroll-offset-from-end - (self.current-position.y - self.pressed-position.y));
+        }
+    }
+
     up-button := MyButton {
         x: root.width - self.width + 1px;
         y: -1px;

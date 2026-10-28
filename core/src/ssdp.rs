@@ -38,7 +38,7 @@ pub async fn ssdp_task(
     >,
 ) {
     let stack = framework.borrow().stack;
-    info!("ssdp_task started");
+    info!("SSDP 任务已启动");
     Framework::wait_for_wifi(&framework).await;
     info!("ssdp_task link is up");
 

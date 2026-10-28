@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SpoolEase Basic Configuration</title>
+    <title>AMShub 基础配置</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <div id="custom-alert" style="display: none;">
         <div id="custom-alert-box">
             <p id="custom-alert-text"></p>
-            <button onclick="closeAlert()">OK</button>
+            <button onclick="closeAlert()">确定</button>
         </div>
     </div>
     <script>
@@ -25,22 +25,22 @@
         window.alert = function(message) { showAlert(message); };
     </script>
 
-    <h1>SpoolEase</h1>
-    <h3 class="subtitle">This is only connectivity configuration. After completion restart and continue to full application configuration!</h3>
+    <h1>AMShub</h1>
+    <h3 class="subtitle">这里仅用于网络连接配置。完成后重启设备，再继续完整的应用配置！</h3>
 
     <!-- Security Key Section -->
     <div class="section" id="security-section">
-      <h2 class="section-title">Security Key</h2>
+      <h2 class="section-title">安全密钥</h2>
 
       <div id="verify-key-section">
         <div class="form-row">
           <label for="security-key"
-            >Key: * <span>Fill and verify key before configuring</span></label
+            >密钥：* <span>配置前请填写并验证密钥</span></label
           >
           <input
             type="text"
             id="security-key"
-            placeholder="Enter security key"
+            placeholder="请输入安全密钥"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
@@ -52,19 +52,19 @@
           onclick="applyKeyFetchConfigs()"
           disabled
         >
-          Verify Key & Load Config
+          验证密钥并加载配置
         </button>
         <label class="feedback-label" id="security-key-feedback"></label>
       </div>
       <div id="set-fixed-key-section">
         <div class="form-row" style="margin-top: 20px">
           <label for="fixed-security-key"
-            >Set a Fixed Key:<span>Optional, applies after restart</span></label
+            >设置固定密钥：<span>可选，重启后生效</span></label
           >
           <input
             type="text"
             id="fixed-security-key"
-            placeholder="Enter fixed security key"
+            placeholder="请输入固定安全密钥"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
         </div>
@@ -76,32 +76,32 @@
           onclick="applyFixedSecurityKeySettings()"
           disabled
         >
-          Apply
+          应用
         </button>
       </div>
     </div>
 
     <!-- WiFi Credentials Section -->
     <div class="section" id="wifi-section">
-      <h2 class="section-title">WiFi Credentials</h2>
+      <h2 class="section-title">WiFi 凭据</h2>
 
       <div class="form-row">
         <label for="wifi-ssid">SSID: *</label>
         <input
           type="text"
           id="wifi-ssid"
-          placeholder="Enter WiFi network name"
+          placeholder="请输入 WiFi 网络名称"
           autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
         />
       </div>
 
       <div class="form-row">
-        <label for="wifi-password">Password: *</label>
+        <label for="wifi-password">密码：*</label>
         <div class="password-container">
           <input
             type="password"
             id="wifi-password"
-            placeholder="Enter WiFi password"
+            placeholder="请输入 WiFi 密码"
             autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
           />
           <span
@@ -119,22 +119,22 @@
         onclick="applyWiFiSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
     <!-- Device Name -->
     <div class="section" id="device-name-section">
-      <h2 class="section-title">Device Name</h2>
+      <h2 class="section-title">设备名称</h2>
       <div class="form-row">
-        <label for="device-name">Device Name:</label>
+        <label for="device-name">设备名称：</label>
         <input
           type="text"
           maxlength="63"
           pattern="[a-zA-Z0-9-]{1,63}"
           oninput="filterDnsName(this)"
           id="device-name"
-          placeholder="Enter Device Name"
+          placeholder="请输入设备名称"
           autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"
         />
       </div>
@@ -146,13 +146,13 @@
         onclick="applyDeviceNameSettings()"
         disabled
       >
-        Apply
+        应用
       </button>
     </div>
 
     <!-- General Section -->
     <div class="section" id="general-section">
-      <h2 class="section-title">General</h2>
+      <h2 class="section-title">通用</h2>
 
       <button
         id="restart-device"
@@ -161,7 +161,7 @@
         onclick="restartDevice()"
         disabled
       >
-        Restart Device
+        重启设备
       </button>
     </div>
 
@@ -284,13 +284,13 @@
           const encryptedText = await response.text();
           const decryptedText = decrypt(encryptionKey, encryptedText);
           const result = JSON.parse(decryptedText);
-          alert(`Settings applied successfully`);
+          alert(`设置已应用成功`);
           if (applyButton) {
             applyButton.disabled = true;
           }
         } catch (error) {
           console.error("Failed to apply settings:", error);
-          alert(`Failed to apply settings: ${error.message}`);
+          alert(`应用设置失败：${error.message}`);
         }
       }
 
@@ -358,12 +358,12 @@
           let response = await sendData("/api/test-key", data); // Replace with actual server endpoint
           if (response.status == 400) {
             document.getElementById("security-key-feedback").textContent =
-              "Security Key is incorrect";
+              "安全密钥错误";
             document.getElementById("restart-device").disabled = true;
             return;
           } else if (response.ok) {
             document.getElementById("security-key-feedback").textContent =
-              "Security Key validated";
+              "安全密钥已验证";
             document.getElementById("verify-key-button").disabled = true;
             document.getElementById("device-name-apply").disabled = true;
             document.getElementById("wifi-section-apply").disabled = true;
@@ -373,14 +373,14 @@
         } catch (error) {
           console.error("Failed to apply settings:", error);
           document.getElementById("security-key-feedback").textContent =
-            `Failed to check key, try again (${error.message})`;
+            `检查密钥失败，请重试（${error.message}）`;
           return;
         }
         try {
           await fetchSectionConfigs();
         } catch (error) {
           document.getElementById("security-key-feedback").textContent +=
-            " but Failed to Load Configs";
+            "，但加载配置失败";
         }
       }
 
@@ -406,7 +406,7 @@
         const data = {};
         sendData("/api/reset-device", data, 1);
         alert(
-          "Device restarted. Reactivate Web Config from device and refresh page to continue configuration",
+          "设备已重启。请从设备重新激活 Web 配置并刷新页面继续。",
         );
       }
 

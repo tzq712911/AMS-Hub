@@ -96,7 +96,7 @@ async fn main(spawner: Spawner) {
     // ==================================================================================================================================================
 
     esp_println::logger::init_logger_from_env();
-    info!("Application Start");
+    info!("应用启动");
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
@@ -110,7 +110,7 @@ async fn main(spawner: Spawner) {
     // IMPORTANT: PSRAM need to be initialized first, so 'Normal' allocations will use the region
     init_psram_heap(start, size);
 
-    info!("Using PSRAM start: {start:x?} size: {size}");
+    info!("使用 PSRAM 起始地址: {start:x?} 大小: {size}");
 
     // Second, reserve from 'standard' area, if need additional memory for esp-wifi/esp-mbedtls, need to increase this
     esp_alloc::heap_allocator!(size: 122 * 1024);
@@ -136,20 +136,20 @@ async fn main(spawner: Spawner) {
 
     // == Setup Flash Storage =========================================================
 
-    debug!("Setting up flash storage");
+    debug!("初始化 Flash 存储");
 
     let storage = FlashStorage::new();
 
     // == Setup Flash Map =============================================================
 
-    debug!("Setting up Flash Map");
+    debug!("初始化 Flash 映射");
 
     let blocking_async_storage = BlockingAsync::new(storage);
     let flash_map = FlashMap::new_in_region(blocking_async_storage, "map", 4096, env!("CARGO_PKG_NAME")).await;
     let flash_map = match flash_map {
         Ok(v) => v,
         Err(err) => {
-            error!("Error setting up flash map: {err:?}");
+            error!("Flash 映射初始化失败: {err:?}");
             // TODO: reorder/reorganize config /app/ui so can display errors if there are such during flash initialization
             // boot.borrow().add_text_new_line("Can't initialize flash, boot halted!");
             return;
@@ -159,7 +159,7 @@ async fn main(spawner: Spawner) {
 
     // == Prepare Wifi Structs ========================================================
 
-    debug!("Setting up Wifi Structs");
+    debug!("初始化 WiFi 结构");
 
     let esp_radio_ctrl = &*mk_static!(esp_radio::Controller<'static> , esp_radio::init().unwrap());
 
@@ -206,7 +206,7 @@ async fn main(spawner: Spawner) {
 
     // == Prepare Framework ===========================================================
 
-    debug!("Setting up Framework Config");
+    debug!("初始化框架配置");
 
     let framework_settings = FrameworkSettings {
         ota_domain: OTA_DOMAIN,
@@ -228,7 +228,7 @@ async fn main(spawner: Spawner) {
         web_app_salt: WEB_APP_SALT,
         web_app_key_derivation_iterations: WEB_APP_KEY_DERIVATION_ITERATIONS,
 
-        app_cargo_pkg_name: env!("CARGO_PKG_NAME"),
+        app_cargo_pkg_name: "AMShub",
         app_cargo_pkg_version: env!("CARGO_PKG_VERSION"),
         default_fixed_security_key: None,
 
@@ -283,7 +283,7 @@ async fn main(spawner: Spawner) {
     // == Configure the App UI ========================================================
     // (need to be done after the call to slint::platform::set_platform)
 
-    debug!("Configuring App UI");
+    debug!("配置应用界面");
 
     let ui: &mut crate::app::AppWindow = mk_static!(crate::app::AppWindow, crate::app::create_slint_app());
 
@@ -308,7 +308,7 @@ async fn main(spawner: Spawner) {
 
     // == Setup the sdcard ============================================================
 
-    debug!("Setting up SDCard");
+    debug!("初始化 SD 卡");
 
     Framework::set_sdcard_device(framework.clone(), sdcard_device).await;
 
@@ -318,16 +318,16 @@ async fn main(spawner: Spawner) {
         let mut file_store = file_store.lock().await;
         sdcard_available = file_store.card_installed;
         let config_filename = "/config/console.cfg";
-        term_info!("Loading optional config file '{}' from SDCard", config_filename);
+        term_info!("从 SD 卡加载可选配置文件 '{}'", config_filename);
 
         let read_file_str = file_store.read_file_str(config_filename).await;
         match read_file_str {
             Ok(config_toml) => {
-                term_info!("Read config file '{}' from SDCard", config_filename);
+                term_info!("读取 SD 卡配置文件 '{}'", config_filename);
                 config_toml
             }
             Err(e) => {
-                term_info!("Failed to load optional config file '{}' : {}", config_filename, e);
+                term_info!("加载可选配置文件 '{}' 失败: {}", config_filename, e);
                 "".to_string()
                 // SDCard is not mandatory, so can continue
             }
@@ -345,7 +345,7 @@ async fn main(spawner: Spawner) {
 
     // == Setup Wifi ==================================================================
 
-    debug!("Setting up Wifi");
+    debug!("初始化 WiFi");
 
     spawner.spawn_heap(framework::wifi::connection_task_inner(controller, sta_stack, ap_stack, rx, tx, framework.clone())).ok();
 
@@ -453,13 +453,13 @@ async fn main(spawner: Spawner) {
     yield_now().await;
     yield_now().await;
     yield_now().await;
-    term_info!("Booting from partition {}", boot_partition);
-    term_info!("Firmware: {} version {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    term_info!("从分区 {} 启动", boot_partition);
+    term_info!("固件: {} 版本 {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
     if sdcard_available {
-        term_info!("SD Card installed");
+        term_info!("SD 卡已安装");
     } else {
-        term_info!("Error initializing SD Card, system can't function");
+        term_info!("SD 卡初始化失败，系统无法运行");
     }
 
     // just wait for all initalization to be known

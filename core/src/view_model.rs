@@ -226,7 +226,7 @@ impl ViewModel {
         let mut available_printers: Vec<SharedString> = Vec::new();
         for printer_config in &self.app_config.borrow().configured_printers.printers {
             if printer_number > 5 {
-                term_info!("Printers limit reached - max five printers supported");
+                term_info!("已达到打印机数量上限（最多 5 台）");
                 break;
             }
             match bambu::init(
@@ -259,7 +259,7 @@ impl ViewModel {
                     printer_index += 1; // index is increased only if printer is added to array
                 }
                 Err(e) => {
-                    term_info!("[{}] Error initializing printer: {}", printer_number, e);
+                    term_info!("[{}] 初始化打印机失败: {}", printer_number, e);
                 }
             }
             printer_number += 1; // printer_number is always increased, even if printer is bad config
@@ -2489,14 +2489,14 @@ impl BambuPrinterObserver for ViewModel {
             //       So here I know it arrives here only if boot is successful, but in other applications this might not be enough
             // if self.app_config.borrow().boot_completed() {
             term_info!(&"-".repeat(62));
-            term_info!("Printer [{}] connected successfully", bambu_printer.printer_number);
+            term_info!("打印机 [{}] 连接成功", bambu_printer.printer_number);
             term_info!(&"-".repeat(62));
             self.ui_weak
                 .unwrap()
                 .global::<crate::app::AppState>()
                 .invoke_printer_connected(bambu_printer.printer_selector_name.to_shared_string());
         } else {
-            term_info!("[{}] Printer disconnected", bambu_printer.printer_number);
+            term_info!("[{}] 打印机已断开", bambu_printer.printer_number);
         }
     }
 
@@ -2859,7 +2859,7 @@ impl FrameworkObserver for ViewModel {
     fn on_initialization_completed(&self, status: bool) {
         if status {
             term_info!(&"-".repeat(62));
-            term_info!("Initialization completed successfully");
+            term_info!("初始化成功");
             term_info!(&"-".repeat(62));
             self.ui_weak.unwrap().global::<crate::app::AppState>().invoke_initialization_completed();
         } else {
@@ -2869,7 +2869,7 @@ impl FrameworkObserver for ViewModel {
                 .global::<crate::app::AppState>()
                 .invoke_boot_failed("Boot Failed\nScroll Up for Details".to_shared_string());
             term_info!(&"x".repeat(44));
-            term_info!("Initialization failed - Review errors, fix, and restart");
+            term_info!("初始化失败 - 请检查错误并修复后重启");
             term_info!(&"x".repeat(44));
         }
     }
@@ -3115,12 +3115,12 @@ pub async fn printers_scheduled_store_state_task(framework: Rc<RefCell<Framework
         let file_store = framework.borrow().file_store();
         let file_store = file_store.lock().await;
         if !file_store.card_installed {
-            term_info!("SDCard not installed, won't restore state on restart");
+            term_info!("未安装 SD 卡，重启后不恢复状态");
             return;
         }
     }
     let num_of_printers = view_model.borrow().bambu_printer_model.printers.len();
-    term_info!("Restoring printer(s) state");
+    term_info!("恢复打印机状态");
     for printer_index in 0..num_of_printers {
         let printer = view_model.borrow().bambu_printer_model.printers[printer_index].clone();
         if printer.borrow().printer_name().to_lowercase() == "simulator" {
@@ -3405,7 +3405,7 @@ enum AppAsyncTaskRequest {
 type AppAsyncTasksChannel = Channel<NoopRawMutex, AppAsyncTaskRequest, 5>;
 
 pub async fn app_async_task(view_model: Rc<RefCell<ViewModel>>) {
-    info!("Main application async task started");
+    info!("主应用异步任务已启动");
 
     let store = view_model.borrow().store.clone();
     while !store.is_available() {
