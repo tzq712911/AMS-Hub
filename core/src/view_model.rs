@@ -890,10 +890,33 @@ impl ViewModel {
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_get_console_presets(move || vm.borrow().console_presets());
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_presets_for_brand(move|brand|{
+            let all=vm.borrow().console_presets();
+            slint::ModelRc::new(slint::VecModel::from(all.iter().filter(|p|p.brand.as_str().eq_ignore_ascii_case(&brand)).collect::<Vec<_>>()))
+        });
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brand(move|code|{
+            vm.borrow().console_presets().iter().find(|p|p.code==code).map(|p|p.brand).unwrap_or_else(||"Generic".into())
+        });
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_colors(|code|{
+            let mut rows=Vec::new();
+            for line in crate::app_config::BAMBU_COLOR_NAMES.lines(){
+                let f:Vec<_>=line.split(',').collect();if f.len()<3||f[0]!=code.as_str(){continue;}
+                if let Ok(rgb)=u32::from_str_radix(&f[1][..6],16){rows.push(crate::app::UiConsoleColor{name:f[2].into(),code:f[1].into(),tint:slint::Color::from_argb_encoded(0xff000000|rgb)});}
+            }
+            if rows.is_empty(){for (name,color) in [("White","FFFFFFFF"),("Black","000000FF"),("Red","F01B23FF"),("Blue","287FC2FF"),("Green","00CE9BFF"),("Cyan","71CCE1FF"),("Yellow","F5D14BFF"),("Orange","FF8B3DFF"),("Purple","A083CCFF"),("Gray","969696FF"),("Pink","E383BAFF"),("Brown","805838FF")]{rows.push(crate::app::UiConsoleColor{name:name.into(),code:color.into(),tint:slint::Color::from_argb_encoded(0xff000000|u32::from_str_radix(&color[..6],16).unwrap())});}}
+            slint::ModelRc::new(slint::VecModel::from(rows))
+        });
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_parse_console_color(|code|{
+            slint::Color::from_argb_encoded(0xff000000|code.get(..6).and_then(|s|u32::from_str_radix(s,16).ok()).unwrap_or(0x555555))
+        });
         self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brands(|| {
-            let mut names:Vec<SharedString>=alloc::vec!["Generic".into()];
+            let mut names:Vec<SharedString>=alloc::vec!["Bambu Lab".into(),"Generic".into()];
             names.extend(FILAMENT_BRAND_NAMES.lines().filter(|s|!s.starts_with('#')&&!s.trim().is_empty()).map(|s|s.split(',').next().unwrap().trim().into()));
-            slint::ModelRc::new(slint::VecModel::from(names))
+            let mut unique:Vec<SharedString>=Vec::new();
+            for n in names{let n=if n=="Bambu"{"Bambu Lab".into()}else{n};if !unique.contains(&n){unique.push(n);}}
+            slint::ModelRc::new(slint::VecModel::from(unique))
         });
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
@@ -903,18 +926,28 @@ impl ViewModel {
             .on_configure_console_slot(move |tray, preset, material, color, calibration| {
                 vm.borrow().configure_console_slot(tray, &preset, &material, &color, calibration)
             });
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_configure_console_profile(move|tray,preset,material,color,calibration,brand,series|{
+            let model=vm.borrow();let error=model.configure_console_slot(tray,&preset,&material,&color,calibration);
+            if !error.is_empty(){return error;}
+            let profile=SpoolRecord{brand:brand.to_string(),slicer_filament:preset.to_string(),material_type:material.to_string(),material_subtype:series.to_string(),color_code:color.to_ascii_uppercase(),..Default::default()};
+            let serial=model.bambu_printer_model.borrow().printer_serial.clone();
+            if model.framework.borrow().store(format!("bc_{}_{}",serial,tray),serde_json::to_string(&profile).unwrap()).is_err(){return "机器命令已发送，但本地实际资料保存失败".into();}
+            SharedString::new()
+        });
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_register_console_tag(move |tag, preset, material, color| {
-                vm.borrow().register_console_tag(&tag, &preset, &material, &color, "Generic")
+                vm.borrow().register_console_tag(&tag, &preset, &material, &color, "Generic", "")
             });
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
-            .on_register_console_tag_brand(move |tag,preset,material,color,brand| vm.borrow().register_console_tag(&tag,&preset,&material,&color,&brand));
+            .on_register_console_tag_brand(move |tag,preset,material,color,brand,series| vm.borrow().register_console_tag(&tag,&preset,&material,&color,&brand,&series));
     }
 
-    fn register_console_tag(&self, tag: &str, preset: &str, material: &str, color: &str, brand: &str) -> SharedString {
+    fn register_console_tag(&self, tag: &str, preset: &str, material: &str, color: &str, brand: &str, series:&str) -> SharedString {
         if brand.trim().is_empty() || brand.len()>64 || brand.chars().any(char::is_control) { return "请选择有效品牌".into(); }
+        if series.len()>128||series.chars().any(char::is_control){return "系列名称无效".into();}
         if ![8, 14, 20].contains(&tag.len()) || !tag.bytes().all(|c| c.is_ascii_hexdigit()) {
             return "标签编号无效，请重新扫描".into();
         }
@@ -925,6 +958,7 @@ impl ViewModel {
             material, info.nozzle_temp_low as u32, info.nozzle_temp_high as u32) { return error.into(); }
         let record = SpoolRecord {
             brand:brand.trim().into(),
+            material_subtype:if !series.trim().is_empty(){series.trim().into()}else if self.console_presets().iter().any(|p|p.code.as_str()==info.slicer_code&&p.brand.as_str().eq_ignore_ascii_case(brand)){info.slicer_name.clone()}else{material.into()},
             tag_id: tag,
             material_type: material.into(),
             color_code: color.to_ascii_uppercase(),
@@ -947,6 +981,7 @@ impl ViewModel {
                 if fields.len() < 5 || fields[0].is_empty() { continue; }
                 let (Ok(temp_min), Ok(temp_max)) = (fields[2].parse::<i32>(), fields[3].parse::<i32>()) else { continue; };
                 presets.push(crate::app::UiConsolePreset {
+                    brand:if fields.len()>5{fields[5].into()}else if fields[1].starts_with("Bambu "){"Bambu Lab".into()}else{get_brand_from_text(fields[1]).unwrap_or("Generic").into()},
                     code: fields[0].into(), name: decode_csv_field(fields[1]).into(),
                     material: fields[4].into(), temp_min, temp_max,
                 });
@@ -1348,7 +1383,7 @@ impl ViewModel {
         UiSpoolRecordDisplay {
             pa_line1: (if record.ext_has_k { "Configured" } else { "Not Configured" }).to_shared_string(),
             pa_line2: SharedString::new(),
-            slicer_filament_name,
+            slicer_filament_name:if record.material_subtype.is_empty(){slicer_filament_name}else{record.material_subtype.clone()},
             spool_record: record,
             temp_min,
             temp_max,
@@ -1442,6 +1477,15 @@ impl ViewModel {
             ui_tray.k = SharedString::from(k_value_unformatted);
             ui_tray.brand = curr_tray.meta_info.spool_id.as_ref()
                 .and_then(|id| self.store.get_spool_by_id(id)).filter(|r|!r.brand.is_empty()).map(|r|r.brand.into()).unwrap_or_else(||ui_tray.brand.clone());
+            if curr_tray.meta_info.spool_id.is_none(){
+                if let Filament::Known(wire)=&curr_tray.filament{
+                    if let Ok(Some(text))=self.framework.borrow().fetch(format!("bc_{}_{}",bambu_printer.printer_serial,ui_tray_id)){
+                        if let Ok(local)=serde_json::from_str::<SpoolRecord>(&text){
+                            if local.slicer_filament==wire.tray_info_idx&&local.color_code.eq_ignore_ascii_case(&wire.tray_color){ui_tray.brand=local.brand.into();}
+                        }
+                    }
+                }
+            }
             ui_tray.weight_display = self.weight_display(curr_tray);
             ui_tray.used_in_print = curr_tray.meta_info.used_in_print;
             trays_state.set_row_data(tray_row, ui_tray);
@@ -1643,7 +1687,7 @@ impl ViewModel {
     fn display_filament_staging(&self, notify_operation: bool) {
         if notify_operation {
             if let Some(record)=self.filament_staging.borrow().spool_rec() {
-                self.ui_weak.unwrap().global::<crate::app::HubUi>().invoke_scan(record.material_type.clone().into(),record.color_code.clone().into(),record.brand.clone().into());
+                self.ui_weak.unwrap().global::<crate::app::HubUi>().invoke_scan(record.material_type.clone().into(),record.color_code.clone().into(),record.brand.clone().into(),record.material_subtype.clone().into());
             }
         }
         if self.bambu_printer_model.printers.is_empty() {
@@ -2595,6 +2639,7 @@ impl SpoolTagObserver for ViewModel {
             }
             Status::ReadSuccess(read_result) => {
                 // A new tag replaces the staged identity, including when it needs registration.
+                ui.unwrap().global::<crate::app::HubUi>().set_editing(false);
                 self.filament_staging.borrow_mut().clear();
                 ui.unwrap().global::<crate::app::AppState>().invoke_empty_spool_staging();
                 match read_result {

@@ -2,15 +2,18 @@
 
 WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制台，基于 [SpoolEase](https://github.com/yanshay/SpoolEase) 公开源码 `3532f8d962dd1a95c7d4ebb37beddca5bbefd39a` 修改。
 
-## 两个独立测试版本
+## 独立测试版本
 
 | 版本 | 文件 | 状态 |
 | --- | --- | --- |
 | 拓竹中文 V1 | `releases/bambu-v1/SpoolEase-console.zh.1-app.bin` | 已编译，保留原文件和校验值 |
 | 多品牌 V2 | `releases/multibrand-v2/AMS-Hub-0.6.0-alpha.1-app.bin` | 已编译，U1 / Anycubic 为实验性适配 |
 | 多品牌 alpha.2 | `releases/multibrand-alpha2/AMS-Hub-0.6.0-alpha.2-app.bin` | 新版：装料事件自动匹配、Logo 选项卡、本地品牌和 RFID 建档 |
+| 多品牌 alpha.3 | `releases/multibrand-alpha3/AMS-Hub-0.6.0-alpha.3-app.bin` | 三级选择、实际 RFID 档案与机器兼容值分离 |
 
-两个版本均未经过此项目的实机验证。编译成功不等于已验证 X2D、U1、ACE 或官方切片软件同步；各固件的 `build-info.json` 提供 SHA256、大小和构建状态。
+所有版本均未经过此项目的实机验证。编译成功不等于已验证 X2D、U1、ACE 或官方切片软件同步；各固件的 `build-info.json` 提供 SHA256、大小和构建状态。
+
+最新交互、目录来源和映射规则见 [ALPHA3-NOTES.md](ALPHA3-NOTES.md)。例如本地 Bambu Lab / PLA Lite / 青色，U1 可写 Generic / PLA / 同一 RGB，ACE 仅写 PLA 与 RGB；本地真实档案保持不变。
 
 镜像是 **application-only**，不是从地址 0 烧录的合并镜像。保留上游 16 MiB Flash、两个 7 MiB OTA 应用分区，刷写前核对实际分区和开发板。原拓竹 V1 的完整源码归档在 `releases/bambu-v1/`，便于分别回归测试。
 
@@ -23,7 +26,7 @@ WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制
 - 拓竹保留上游单槽读料事件自动写入；U1 使用 `filament_exist`；ACE 仅在报告明确的 `loaded` 布尔值或已确认的空槽状态枚举时自动匹配。缺少可信传感器状态会提示手选，不根据颜色/耗材类型猜测槽位。
 - Anycubic 适配只适用于具有该 LAN 协议和 ACE 的机型/固件；没有承诺整个品牌所有 FDM 机器兼容。外置料架 `extfilbox` 暂未接入。
 
-主界面隐藏库存操作；上游库存、称重和配置后端仍保留。跨品牌不转发 Bambu 预设 ID 或 `cali_idx`。
+主界面隐藏库存操作，alpha.3 已裁剪不需要的网页库存管理入口；RFID 数据库、连接配置与备份保留。跨品牌不转发 Bambu 预设 ID 或 `cali_idx`。
 
 alpha.2 左上角三个品牌官网图标可直接切换品牌；U1 和 ACE 的连接配置分别保存。拓竹卡片显示品牌，支持 4 组 AMS + 上游已有的 8 个 HT 单槽映射，设备条可横向滚动。实际可连接数量仍取决于机器与上游协议能力。
 

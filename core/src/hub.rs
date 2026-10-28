@@ -4,7 +4,7 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex,channel::Channel};
 use embassy_time::{with_timeout,Duration,Instant};
 use framework::prelude::*;
 use slint::ComponentHandle;
-use crate::{app::{AppWindow,HubUi},hub_protocol::{Brand,Config,Filament,Slot},load_transition::Detector};
+use crate::{app::{AppWindow,HubUi},hub_protocol::{Brand,Config,Filament,Slot,AppliedProfile,machine_profile},load_transition::Detector};
 pub const CONFIG_KEY:&str="ams_hub_v2";
 enum Request {Read,Arm(Filament),Write(Slot)}
 type Requests=Channel<NoopRawMutex,Request,2>;
@@ -51,11 +51,11 @@ pub fn init(framework:Rc<RefCell<Framework>>,ui:slint::Weak<AppWindow>)->Rc<RefC
         s.set_status("读取对应品牌的机器状态；未配置时请到连接设置网页填写".into());let _=tx.try_send(Request::Read);
     });
     let tx=channel.clone();let weak=ui.clone();
-    state.on_scan(move|material,color,vendor|{
+    state.on_scan(move|material,color,vendor,series|{
         if weak.unwrap().global::<HubUi>().get_active_brand()==0{return;}
         weak.unwrap().global::<HubUi>().set_status("正在读取空槽基线，请稍候再装料…".into());
         let vendor=if vendor.is_empty(){"Generic".into()}else{vendor.to_string()};
-        let _=tx.try_send(Request::Arm(Filament{vendor,material:material.to_string(),rgba:color.to_string(),subtype:String::new()}));
+        let _=tx.try_send(Request::Arm(Filament{vendor,material:material.to_string(),rgba:color.to_string(),subtype:series.to_string()}));
     });
     let tx=channel.clone();let b=busy.clone();
     state.on_apply(move|box_id,index,material,color,vendor,subtype|{
@@ -73,8 +73,15 @@ async fn read(f:Rc<RefCell<Framework>>,c:&Config)->Result<Vec<Slot>,&'static str
     if c.brand==Brand::U1{crate::hub_lan::u1_read(stack,c).await}else{crate::hub_lan::ac_exchange(f,c,None).await}
 }
 async fn write(f:Rc<RefCell<Framework>>,c:&Config,slot:&Slot)->Result<Vec<Slot>,&'static str>{
-    if c.brand==Brand::U1 {let stack=f.borrow().stack;let mut wire=slot.clone();wire.filament.vendor=wire.filament.vendor.replace(' ',"_");crate::hub_lan::u1_write(stack,c,&wire).await}
-    else{crate::hub_lan::ac_exchange(f,c,Some(slot)).await}
+    let mut wire=slot.clone();wire.filament=machine_profile(c.brand,&slot.filament)?;
+    let before=read(f.clone(),c).await?;
+    let target=before.iter().find(|v|v.box_id==slot.box_id&&v.index==slot.index).ok_or("机器未报告目标槽位")?;
+    if target.locked{return Err("该槽位不可覆盖");}
+    // An explicit assignment records physical identity even if the printer later drops a field.
+    let profile=AppliedProfile{actual:slot.filament.clone(),wire:wire.filament.clone()};
+    f.borrow().store(format!("hs_{}_{}_{}",c.host,slot.box_id,slot.index),serde_json::to_string(&profile).unwrap()).map_err(|_|"本地真实耗材资料保存失败，未发送机器命令")?;
+    if c.brand==Brand::U1 {let stack=f.borrow().stack;crate::hub_lan::u1_write(stack,c,&wire).await}
+    else{crate::hub_lan::ac_exchange(f,c,Some(&wire)).await}
 }
 async fn worker(f:Rc<RefCell<Framework>>,ui:slint::Weak<AppWindow>,config:Rc<RefCell<Config>>,requests:Rc<Requests>,busy:Rc<Cell<bool>>){
     let mut armed:Option<(Filament,Instant,String,Brand)>=None;let mut detector=Detector::default();
@@ -91,7 +98,7 @@ async fn worker(f:Rc<RefCell<Framework>>,ui:slint::Weak<AppWindow>,config:Rc<Ref
             Ok(mut slots)=>{
                 let app=w.global::<crate::app::AppState>();
                 let current=app.get_spool_staging_info().spool_record;
-                let matching=|filament:&Filament| app.get_spool_staging_state()!=crate::app::SpoolStagingState::Empty && app.get_control_state()!=crate::app::ControlState::NewTagScan && current.material_type.as_str()==filament.material && current.color_code.as_str()==filament.rgba && (if current.brand.is_empty(){"Generic"}else{current.brand.as_str()})==filament.vendor;
+                let matching=|filament:&Filament| app.get_spool_staging_state()!=crate::app::SpoolStagingState::Empty && app.get_control_state()!=crate::app::ControlState::NewTagScan && current.material_type.as_str()==filament.material && current.color_code.as_str()==filament.rgba && current.material_subtype.as_str()==filament.subtype && (if current.brand.is_empty(){"Generic"}else{current.brand.as_str()})==filament.vendor;
                 if armed.as_ref().is_some_and(|(filament,_,_,_)|!matching(filament)){armed=None;}
                 if baseline.as_ref().is_some_and(|filament|!matching(filament)){baseline=None;}
                 if let Some(filament)=baseline {
@@ -110,15 +117,23 @@ async fn worker(f:Rc<RefCell<Framework>>,ui:slint::Weak<AppWindow>,config:Rc<Ref
                     }
                 }
                 if let Some(slot)=&requested {
-                    let _=f.borrow().store(format!("hs_{}_{}_{}",c.host,slot.box_id,slot.index),serde_json::to_string(&slot.filament).unwrap());
-                    s.set_status("机器已读回确认 · 本地品牌信息已保留".into());
+                    let association=AppliedProfile{actual:slot.filament.clone(),wire:machine_profile(c.brand,&slot.filament).unwrap()};
+                    let _=f.borrow().store(format!("hs_{}_{}_{}",c.host,slot.box_id,slot.index),serde_json::to_string(&association).unwrap());
+                    s.set_status("类型和颜色已读回确认 · 机器使用兼容配置，本地保留实际信息".into());
                     w.global::<crate::app::AppState>().invoke_empty_spool_staging();
                 }
                 let rows:Vec<_>=slots.iter().map(|v|{
-                    let local=f.borrow().fetch(format!("hs_{}_{}_{}",c.host,v.box_id,v.index)).ok().flatten().and_then(|text|serde_json::from_str::<Filament>(&text).ok()).filter(|info|info.material==v.filament.material&&info.rgba.get(..6)==v.filament.rgba.get(..6)&&v.present!=Some(false));
-                    let brand=local.map(|info|info.vendor).unwrap_or_else(||v.filament.vendor.clone());
-                    let rgb=u32::from_str_radix(&v.filament.rgba[..6],16).unwrap_or(0x555555);
-                    crate::app::HubSlot{box_id:v.box_id as i32,index:v.index as i32,label:format!("槽 {}",v.index+1).into(),rgba:v.filament.rgba.clone().into(),locked:v.locked,brand:brand.into(),material:v.filament.material.clone().into(),tint:slint::Color::from_argb_encoded(0xff000000|rgb)}
+                    let key=format!("hs_{}_{}_{}",c.host,v.box_id,v.index);
+                    if v.present==Some(false){let _=f.borrow().remove(key.clone());}
+                    let local=f.borrow().fetch(key).ok().flatten().and_then(|text|serde_json::from_str::<AppliedProfile>(&text).ok());
+                    let synced=local.as_ref().map(|p|crate::hub_protocol::synchronized(c.brand,p,v)).unwrap_or(true);
+                    let actual=local.as_ref().map(|p|&p.actual).unwrap_or(&v.filament);
+                    let rgb=actual.rgba.get(..6).and_then(|c|u32::from_str_radix(c,16).ok()).unwrap_or(0x555555);
+                    let series=if actual.subtype.is_empty(){actual.material.as_str()}else{actual.subtype.as_str()};
+                    let display=series.strip_prefix("Bambu ").or_else(||series.strip_prefix(&format!("{} ",actual.vendor))).unwrap_or(series);
+                    let catalog:Vec<Vec<&str>>=crate::app_config::BASE_FILAMENTS.lines().map(|r|r.split(',').collect()).collect();
+                    let profile=catalog.iter().find(|r|r.len()>=6&&r[1]==actual.subtype).or_else(||catalog.iter().find(|r|r.len()>=6&&r[5]=="Generic"&&r[4]==actual.material));
+                    crate::app::HubSlot{box_id:v.box_id as i32,index:v.index as i32,label:format!("槽 {}",v.index+1).into(),rgba:actual.rgba.clone().into(),locked:v.locked,brand:actual.vendor.clone().into(),material:display.into(),tint:slint::Color::from_argb_encoded(0xff000000|rgb),machine_detail:format!("{} · 机器 {} {} #{}",if synced{"已同步"}else{"未完全同步"},v.filament.vendor,v.filament.material,v.filament.rgba).into(),series_name:series.into(),base_material:actual.material.clone().into(),preset_code:profile.map(|r|r[0]).unwrap_or("").into(),temp_min:profile.and_then(|r|r[2].parse().ok()).unwrap_or(0),temp_max:profile.and_then(|r|r[3].parse().ok()).unwrap_or(0)}
                 }).collect();s.set_slots(slint::ModelRc::new(slint::VecModel::from(rows)));
             },Err(e)=>{armed=None;s.set_status(e.into());}
         }

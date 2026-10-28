@@ -76,12 +76,14 @@ export struct UiSlotDisplay {
 }
 
 export struct UiConsolePreset {
+    brand:string,
     code: string,
     name: string,
     material: string,
     temp-min: int,
     temp-max: int,
 }
+export struct UiConsoleColor {name:string,code:string,tint:color}
 
 export struct UiConsoleCalibration {
     id: int,
@@ -143,11 +145,16 @@ export enum SpoolStagingState {
 // Functions to call rust
 export global AppBackend {
     pure callback get-console-presets() -> [UiConsolePreset];
+    pure callback get-console-presets-for-brand(brand:string)->[UiConsolePreset];
+    pure callback get-console-colors(preset:string)->[UiConsoleColor];
+    pure callback get-console-brand(preset:string)->string;
+    pure callback parse-console-color(code:string)->color;
     pure callback get-console-brands()->[string];
     pure callback get-console-calibrations(tray-id: int, filament-id: string) -> [UiConsoleCalibration];
     callback configure-console-slot(tray-id: int, preset-code: string, material: string, color-code: string, calibration-id: int) -> string;
+    callback configure-console-profile(tray:int,preset:string,material:string,color:string,calibration:int,brand:string,series:string)->string;
     callback register-console-tag(tag-id: string, preset-code: string, material: string, color-code: string) -> string;
-    callback register-console-tag-brand(tag-id:string,preset-code:string,material:string,color-code:string,brand:string)->string;
+    callback register-console-tag-brand(tag-id:string,preset-code:string,material:string,color-code:string,brand:string,series:string)->string;
     callback clear-staging();
     callback set-staging-to-tray(tray-id: int);
     callback encode-tag() -> bool;

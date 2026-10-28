@@ -3,7 +3,7 @@ import { ConsoleHome } from "console-home.slint";
 import { ConsoleEditor } from "console-editor.slint";
 import { ConsoleSettings } from "console-settings.slint";
 import { HubPage, HubUi, HubSlot } from "hub.slint";
-import { AppState, AppBackend, ControlState, UiTrayState, UiFilamentState, SpoolStagingState, UiConsolePreset, UiSlotDisplay } from "app.slint";
+import { AppState, AppBackend, ControlState, UiTrayState, UiFilamentState, SpoolStagingState, UiConsolePreset, UiConsoleColor, UiSpoolRecordDisplay, UiSlotDisplay } from "app.slint";
 import "fonts/ConsoleSans.ttf";
 
 export { AppState, AppBackend }
@@ -16,6 +16,7 @@ export component ConsolePreview inherits Window {
     in-out property <int> preview-mode: 0;
     in-out property <bool> hub-mode: false;
     in-out property <string> simulation-log;
+    out property <UiConsoleColor> color-template:{name:"",code:"",tint:#555555};
     public function scan-demo(petg: bool) {
         AppState.control-state = ControlState.Ready;
         AppState.spool-staging-state = SpoolStagingState.Scanned;
@@ -29,16 +30,20 @@ export component ConsolePreview inherits Window {
     public function simulate-slot(tray-id:int, material:string, tint:color) {
         if tray-id>=0 && tray-id<4 { AppState.trays-state[tray-id+2].filament = {state:UiFilamentState.Known,material:material,color:tint}; }
     }
+    public function simulate-bambu-profile(tray-id:int,material:string,tint:color,vendor:string) {
+        root.simulate-slot(tray-id,material,tint);
+        if tray-id>=0&&tray-id<4{AppState.trays-state[tray-id+2].brand=vendor;}
+    }
     public function multi-ams-demo() { root.home();HubUi.visible=false;HubUi.active-brand=0;AppState.ams-exists=[0,1,2,3,4,5]; }
     public function load-hub-demo(profile:int, locked:bool) {
         HubUi.active-brand=profile;
         HubUi.brand-name=profile==1?"Snapmaker U1":"Anycubic ACE";
         HubUi.host="192.0.2.10 · 模拟地址";
         HubUi.slots=[
-            {box-id:0,index:0,label:"槽 1",material:"PLA",brand:"SUNLU",tint:#00ce9b,rgba:"00CE9BFF",locked:profile==1&&locked},
-            {box-id:0,index:1,label:"槽 2",material:"PLA",brand:"eSUN",tint:#71cce1,rgba:"71CCE1FF",locked:false},
-            {box-id:0,index:2,label:"槽 3",material:"PLA",brand:"Polymaker",tint:#f01b23,rgba:"F01B23FF",locked:false},
-            {box-id:0,index:3,label:"槽 4",material:"PETG",brand:"Generic",tint:#ffffff,rgba:"FFFFFFFF",locked:false}
+            {box-id:0,index:0,label:"槽 1",base-material:"PLA",preset-code:"GFA99",temp-min:190,temp-max:240,material:"PLA",brand:"SUNLU",tint:#00ce9b,rgba:"00CE9BFF",locked:profile==1&&locked},
+            {box-id:0,index:1,label:"槽 2",base-material:"PLA",preset-code:"GFA99",temp-min:190,temp-max:240,material:"PLA",brand:"eSUN",tint:#71cce1,rgba:"71CCE1FF",locked:false},
+            {box-id:0,index:2,label:"槽 3",base-material:"PLA",preset-code:"GFA99",temp-min:190,temp-max:240,material:"PLA",brand:"Polymaker",tint:#f01b23,rgba:"F01B23FF",locked:false},
+            {box-id:0,index:3,label:"槽 4",base-material:"PETG",preset-code:"GFG99",temp-min:220,temp-max:270,material:"PETG",brand:"Generic",tint:#ffffff,rgba:"FFFFFFFF",locked:false}
         ];
     }
     public function simulate-hub-slot(index:int,material:string,rgba:string) {
@@ -46,14 +51,124 @@ export component ConsolePreview inherits Window {
         HubUi.slots[index].label="槽 "+(index+1)+" · "+material;
         HubUi.slots[index].rgba=rgba;
     }
-    public function scan-record(tag:string,brand:string,material:string,rgba:string,tint:color,preset:string) {
+    public function simulate-hub-profile(index:int,info:UiSpoolRecordDisplay,machine:string) {
+        HubUi.slots[index].material=info.slicer-filament-name;
+        HubUi.slots[index].base-material=info.spool-record.material-type;
+        HubUi.slots[index].brand=info.spool-record.brand;
+        HubUi.slots[index].rgba=info.spool-record.color-code;
+        HubUi.slots[index].tint=info.color;
+        HubUi.slots[index].preset-code=info.spool-record.slicer-filament;
+        HubUi.slots[index].series-name=info.spool-record.material-subtype;
+        HubUi.slots[index].temp-min=info.temp-min;
+        HubUi.slots[index].temp-max=info.temp-max;
+        HubUi.slots[index].machine-detail=machine;
+    }
+    public function scan-record(tag:string,brand:string,material:string,rgba:string,tint:color,preset:string,minimum:int,maximum:int,series:string) {
         root.home();AppState.spool-staging-state=SpoolStagingState.Scanned;
-        AppState.spool-staging-info={spool-record:{tag-id:tag,id:tag,brand:brand,material-type:material,color-code:rgba,slicer-filament:preset},color:tint,slicer-filament-name:preset};
+        AppState.spool-staging-info={spool-record:{tag-id:tag,id:tag,brand:brand,material-type:material,color-code:rgba,slicer-filament:preset,material-subtype:series},color:tint,slicer-filament-name:series,temp-min:minimum,temp-max:maximum};
     }
     out property <[UiConsolePreset]> demo-presets: [
-        { code: "GFA00", name: "Bambu PLA Basic", material: "PLA", temp-min: 190, temp-max: 240 },
-        { code: "GFA01", name: "Bambu PLA Matte", material: "PLA", temp-min: 190, temp-max: 240 },
-        { code: "GFG99", name: "Generic PETG", material: "PETG", temp-min: 220, temp-max: 270 }
+{code:"GFA00",name:"Bambu PLA Basic",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA01",name:"Bambu PLA Matte",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA02",name:"Bambu PLA Metal",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA05",name:"Bambu PLA Silk",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA06",name:"Bambu PLA Silk+",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA07",name:"Bambu PLA Marble",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA08",name:"Bambu PLA Sparkle",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA09",name:"Bambu PLA Tough",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA10",name:"Bambu PLA Tough+",brand:"Bambu Lab",material:"PLA",temp-min:220,temp-max:250},
+{code:"GFA11",name:"Bambu PLA Aero",brand:"Bambu Lab",material:"PLA-AERO",temp-min:210,temp-max:260},
+{code:"GFA12",name:"Bambu PLA Glow",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA13",name:"Bambu PLA Dynamic",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA15",name:"Bambu PLA Galaxy",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA16",name:"Bambu PLA Wood",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA17",name:"Bambu PLA Translucent",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA18",name:"Bambu PLA Lite",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFA19",name:"Bambu PLA Pure",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:220},
+{code:"GFA50",name:"Bambu PLA-CF",brand:"Bambu Lab",material:"PLA-CF",temp-min:210,temp-max:250},
+{code:"GFB00",name:"Bambu ABS",brand:"Bambu Lab",material:"ABS",temp-min:240,temp-max:280},
+{code:"GFB01",name:"Bambu ASA",brand:"Bambu Lab",material:"ASA",temp-min:240,temp-max:280},
+{code:"GFB02",name:"Bambu ASA-Aero",brand:"Bambu Lab",material:"ASA-AERO",temp-min:240,temp-max:280},
+{code:"GFB50",name:"Bambu ABS-GF",brand:"Bambu Lab",material:"ABS-GF",temp-min:240,temp-max:280},
+{code:"GFB51",name:"Bambu ASA-CF",brand:"Bambu Lab",material:"ASA-CF",temp-min:250,temp-max:280},
+{code:"GFB60",name:"PolyLite ABS",brand:"Polymaker",material:"ABS",temp-min:240,temp-max:280},
+{code:"GFB61",name:"PolyLite ASA",brand:"Polymaker",material:"ASA",temp-min:240,temp-max:280},
+{code:"GFB98",name:"Generic ASA",brand:"Generic",material:"ASA",temp-min:240,temp-max:280},
+{code:"GFB99",name:"Generic ABS",brand:"Generic",material:"ABS",temp-min:240,temp-max:280},
+{code:"GFC00",name:"Bambu PC",brand:"Bambu Lab",material:"PC",temp-min:260,temp-max:290},
+{code:"GFC01",name:"Bambu PC FR",brand:"Bambu Lab",material:"PC",temp-min:260,temp-max:290},
+{code:"GFC99",name:"Generic PC",brand:"Generic",material:"PC",temp-min:260,temp-max:290},
+{code:"GFG00",name:"Bambu PETG Basic",brand:"Bambu Lab",material:"PETG",temp-min:230,temp-max:270},
+{code:"GFG01",name:"Bambu PETG Translucent",brand:"Bambu Lab",material:"PETG",temp-min:230,temp-max:270},
+{code:"GFG02",name:"Bambu PETG HF",brand:"Bambu Lab",material:"PETG",temp-min:230,temp-max:270},
+{code:"GFG03",name:"Bambu PETG Matte",brand:"Bambu Lab",material:"PETG",temp-min:230,temp-max:270},
+{code:"GFG50",name:"Bambu PETG-CF",brand:"Bambu Lab",material:"PETG-CF",temp-min:240,temp-max:270},
+{code:"GFG60",name:"PolyLite PETG",brand:"Polymaker",material:"PETG",temp-min:220,temp-max:260},
+{code:"GFG96",name:"Generic PETG HF",brand:"Generic",material:"PETG",temp-min:220,temp-max:270},
+{code:"GFG97",name:"Generic PCTG",brand:"Generic",material:"PCTG",temp-min:240,temp-max:270},
+{code:"GFG98",name:"Generic PETG-CF",brand:"Generic",material:"PETG-CF",temp-min:240,temp-max:270},
+{code:"GFG99",name:"Generic PETG",brand:"Generic",material:"PETG",temp-min:220,temp-max:270},
+{code:"GFL00",name:"PolyLite PLA",brand:"Polymaker",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL01",name:"PolyTerra PLA",brand:"Polymaker",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL03",name:"eSUN PLA+",brand:"eSUN",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL04",name:"Overture PLA",brand:"Overture",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL05",name:"Overture Matte PLA",brand:"Overture",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL06",name:"Fiberon PETG-ESD",brand:"Generic",material:"PETG",temp-min:250,temp-max:290},
+{code:"GFL50",name:"Fiberon PA6-CF",brand:"Generic",material:"PA6-CF",temp-min:280,temp-max:300},
+{code:"GFL51",name:"Fiberon PA6-GF",brand:"Generic",material:"PA-GF",temp-min:280,temp-max:300},
+{code:"GFL52",name:"Fiberon PA12-CF",brand:"Generic",material:"PA-CF",temp-min:260,temp-max:300},
+{code:"GFL53",name:"Fiberon PA612-CF",brand:"Generic",material:"PA",temp-min:260,temp-max:300},
+{code:"GFL54",name:"Fiberon PET-CF",brand:"Generic",material:"PET-CF",temp-min:270,temp-max:300},
+{code:"GFL55",name:"Fiberon PETG-rCF",brand:"Generic",material:"PETG-CF",temp-min:240,temp-max:270},
+{code:"GFL95",name:"Generic PLA High Speed",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL96",name:"Generic PLA Silk",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFL98",name:"Generic PLA-CF",brand:"Generic",material:"PLA-CF",temp-min:190,temp-max:240},
+{code:"GFL99",name:"Generic PLA",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFN03",name:"Bambu PA-CF",brand:"Bambu Lab",material:"PA-CF",temp-min:260,temp-max:300},
+{code:"GFN04",name:"Bambu PAHT-CF",brand:"Bambu Lab",material:"PA-CF",temp-min:260,temp-max:300},
+{code:"GFN05",name:"Bambu PA6-CF",brand:"Bambu Lab",material:"PA6-CF",temp-min:260,temp-max:300},
+{code:"GFN06",name:"Bambu PPA-CF",brand:"Bambu Lab",material:"PPA-CF",temp-min:280,temp-max:320},
+{code:"GFN07",name:"Bambu PPA-GF",brand:"Bambu Lab",material:"PPA-GF",temp-min:280,temp-max:320},
+{code:"GFN08",name:"Bambu PA6-GF",brand:"Bambu Lab",material:"PA-GF",temp-min:260,temp-max:300},
+{code:"GFN96",name:"Generic PPA-GF",brand:"Generic",material:"PPA-GF",temp-min:280,temp-max:320},
+{code:"GFN97",name:"Generic PPA-CF",brand:"Generic",material:"PPA-CF",temp-min:280,temp-max:320},
+{code:"GFN98",name:"Generic PA-CF",brand:"Generic",material:"PA-CF",temp-min:260,temp-max:300},
+{code:"GFN99",name:"Generic PA",brand:"Generic",material:"PA",temp-min:240,temp-max:280},
+{code:"GFP95",name:"Generic PP-GF",brand:"Generic",material:"PP-GF",temp-min:220,temp-max:250},
+{code:"GFP96",name:"Generic PP-CF",brand:"Generic",material:"PP-CF",temp-min:220,temp-max:250},
+{code:"GFP97",name:"Generic PP",brand:"Generic",material:"PP",temp-min:220,temp-max:250},
+{code:"GFP98",name:"Generic PE-CF",brand:"Generic",material:"PE-CF",temp-min:175,temp-max:220},
+{code:"GFP99",name:"Generic PE",brand:"Generic",material:"PE",temp-min:175,temp-max:220},
+{code:"GFR98",name:"Generic PHA",brand:"Generic",material:"PHA",temp-min:190,temp-max:240},
+{code:"GFR99",name:"Generic EVA",brand:"Generic",material:"EVA",temp-min:175,temp-max:220},
+{code:"GFS00",name:"Bambu Support W",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFS01",name:"Bambu Support G",brand:"Bambu Lab",material:"PA",temp-min:260,temp-max:300},
+{code:"GFS02",name:"Bambu Support For PLA",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFS03",name:"Bambu Support For PA/PET",brand:"Bambu Lab",material:"PA",temp-min:260,temp-max:300},
+{code:"GFS04",name:"Bambu PVA",brand:"Bambu Lab",material:"PVA",temp-min:210,temp-max:250},
+{code:"GFS05",name:"Bambu Support For PLA/PETG",brand:"Bambu Lab",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFS06",name:"Bambu Support for ABS",brand:"Bambu Lab",material:"ABS",temp-min:240,temp-max:270},
+{code:"GFS97",name:"Generic BVOH",brand:"Generic",material:"BVOH",temp-min:190,temp-max:240},
+{code:"GFS98",name:"Generic HIPS",brand:"Generic",material:"HIPS",temp-min:220,temp-max:270},
+{code:"GFS99",name:"Generic PVA",brand:"Generic",material:"PVA",temp-min:190,temp-max:240},
+{code:"GFSNL02",name:"SUNLU PLA Matte",brand:"Generic",material:"PLA",temp-min:205,temp-max:245},
+{code:"GFSNL03",name:"SUNLU PLA+",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFSNL04",name:"SUNLU PLA+ 2.0",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFSNL05",name:"SUNLU Silk PLA+",brand:"Generic",material:"PLA",temp-min:190,temp-max:240},
+{code:"GFSNL06",name:"SUNLU PLA Marble",brand:"Generic",material:"PLA",temp-min:190,temp-max:260},
+{code:"GFSNL07",name:"SUNLU Wood PLA",brand:"Generic",material:"PLA",temp-min:195,temp-max:260},
+{code:"GFSNL08",name:"SUNLU PETG",brand:"Generic",material:"PETG",temp-min:230,temp-max:280},
+{code:"GFT01",name:"Bambu PET-CF",brand:"Bambu Lab",material:"PET-CF",temp-min:260,temp-max:290},
+{code:"GFT02",name:"Bambu PPS-CF",brand:"Bambu Lab",material:"PPS-CF",temp-min:310,temp-max:340},
+{code:"GFT97",name:"Generic PPS",brand:"Generic",material:"PPS",temp-min:300,temp-max:340},
+{code:"GFT98",name:"Generic PPS-CF",brand:"Generic",material:"PPS-CF",temp-min:310,temp-max:340},
+{code:"GFU00",name:"Bambu TPU 95A HF",brand:"Bambu Lab",material:"TPU",temp-min:200,temp-max:250},
+{code:"GFU01",name:"Bambu TPU 95A",brand:"Bambu Lab",material:"TPU",temp-min:200,temp-max:250},
+{code:"GFU02",name:"Bambu TPU for AMS",brand:"Bambu Lab",material:"TPU-AMS",temp-min:220,temp-max:240},
+{code:"GFU03",name:"Bambu TPU 90A",brand:"Bambu Lab",material:"TPU",temp-min:200,temp-max:240},
+{code:"GFU04",name:"Bambu TPU 85A",brand:"Bambu Lab",material:"TPU",temp-min:200,temp-max:240},
+{code:"GFU98",name:"Generic TPU for AMS",brand:"Generic",material:"TPU-AMS",temp-min:200,temp-max:250},
+{code:"GFU99",name:"Generic TPU",brand:"Generic",material:"TPU",temp-min:200,temp-max:250}
     ];
     out property <UiSlotDisplay> demo-slot: { preset-code: "GFA00", slicer-name: "Bambu PLA Basic", color-code: "00CE9BFF", temp-min: 190, temp-max: 240, pa: "0.020", filament-title: "Bambu PLA Basic" };
     init => {
@@ -92,12 +207,13 @@ export component ConsolePreview inherits Window {
 { id:23,brand:"Generic",spool-state:UiTrayState.Ready,filament:{state:UiFilamentState.Known,material:"PETG",color:#ffffff},k:"0.020" }
         ];
         AppState.spool-staging-state = SpoolStagingState.Scanned;
-        AppState.spool-staging-info = { spool-record: { id: "001", brand:"SUNLU", material-type: "PLA", color-code: "00CE9BFF", slicer-filament: "GFA00", ext-has-k: true }, color: #00ce9b, slicer-filament-name: "Bambu PLA Basic", temp-min: 190, temp-max: 240 };
+        AppState.spool-staging-info = { spool-record: { id: "001", brand:"Bambu Lab", material-type: "PLA", color-code: "00CE9BFF", slicer-filament: "GFA00", ext-has-k: true }, color: #00ce9b, slicer-filament-name: "Bambu PLA Basic", temp-min: 190, temp-max: 240 };
     }
     if !hub-mode && !HubUi.visible && preview-mode == 0 && AppState.control-state != ControlState.TraySelected && AppState.control-state != ControlState.NewTagScan: ConsoleHome { settings=>{root.preview-mode=3;} }
-    if !hub-mode && !HubUi.visible && (preview-mode == 1 || (preview-mode == 0 && AppState.control-state == ControlState.TraySelected)): ConsoleEditor { }
-    if preview-mode == 2 || AppState.control-state == ControlState.NewTagScan: ConsoleEditor { registration-mode: true; }
+    if !hub-mode && !HubUi.visible && (preview-mode == 1 || (preview-mode == 0 && AppState.control-state == ControlState.TraySelected)): ConsoleEditor {width:480px;height:320px;}
+    if preview-mode == 2 || AppState.control-state == ControlState.NewTagScan: ConsoleEditor {width:480px;height:320px;registration-mode:true;}
     if preview-mode == 3: ConsoleSettings {back=>{root.home();}}
     if (hub-mode || HubUi.visible) && preview-mode != 3 && preview-mode != 2 && AppState.control-state != ControlState.NewTagScan: HubPage { }
     if HubUi.settings-open: ConsoleSettings {back=>{HubUi.settings-open=false;}}
+    if HubUi.editing: ConsoleEditor {width:480px;height:320px;}
 }

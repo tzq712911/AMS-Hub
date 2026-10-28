@@ -29,6 +29,22 @@ pub struct Filament {
     pub subtype: String,
     pub rgba: String,
 }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AppliedProfile {pub actual:Filament,pub wire:Filament}
+pub fn synchronized(brand:Brand,profile:&AppliedProfile,observed:&Slot)->bool{
+    let mut expected=observed.clone();expected.filament=profile.wire.clone();
+    confirmed(brand,&expected,core::slice::from_ref(observed))
+}
+
+/// The RFID identity is immutable here; only the target-specific copy is normalised.
+pub fn machine_profile(brand:Brand,actual:&Filament)->Result<Filament>{
+    let mut wire=actual.clone();wire.vendor="Generic".into();wire.subtype.clear();wire.rgba=rgba(&actual.rgba)?;
+    wire.material=match actual.material.as_str(){"PLA Lite"|"PLA Basic"|"PLA Matte"|"PLA Silk"=>"PLA".into(),"PETG HF"=>"PETG".into(),_=>actual.material.clone()};
+    // ACE renders all-zero RGB as empty. Its slicer uses the nearest visible black.
+    if brand==Brand::Anycubic&&wire.rgba.starts_with("000000"){wire.rgba="010101FF".into();}
+    if brand==Brand::Anycubic{wire.rgba.replace_range(6..8,"FF");}
+    Ok(wire)
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Slot { pub box_id: i64, pub index: u8, pub filament: Filament, pub locked: bool, pub present:Option<bool> }

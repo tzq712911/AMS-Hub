@@ -1,18 +1,22 @@
-import { AppState, SpoolStagingState } from "app.slint";
+import { AppState, SpoolStagingState, UiSpoolRecordDisplay } from "app.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
 import { ScrollView } from "std-widgets.slint";
-export struct HubSlot { box-id:int,index:int,label:string,rgba:string,locked:bool,brand:string,material:string,tint:color }
+export struct HubSlot { box-id:int,index:int,label:string,rgba:string,locked:bool,brand:string,material:string,tint:color,machine-detail:string,base-material:string,preset-code:string,temp-min:int,temp-max:int,series-name:string }
 export global HubUi {
     in-out property <int> active-brand:0;
     in-out property <bool> visible:false;
     in-out property <bool> busy:false;
     in-out property <bool> settings-open:false;
+    in-out property <bool> editing:false;
+    in-out property <int> edit-box:0;
+    in-out property <int> edit-index:0;
+    in-out property <UiSpoolRecordDisplay> editor-info;
     in-out property <string> status;
     in-out property <string> brand-name:"AMS-Hub";
     in-out property <string> host;
     in-out property <[HubSlot]> slots;
     callback select-brand(int);
-    callback scan(material:string,rgba:string,vendor:string);
+    callback scan(material:string,rgba:string,vendor:string,series:string);
     callback refresh;
     callback apply(box-id:int,index:int,material:string,rgba:string,vendor:string,subtype:string)->string;
 }
@@ -30,6 +34,7 @@ export component BrandTabs inherits Rectangle {
 }
 export component HubPage inherits Rectangle {
     background:ConsoleTheme.background;
+    TouchArea {width:parent.width;height:parent.height;clicked=>{}}
     property <int> selected:-1;
     property <int> page:0;
     property <string> error;
@@ -65,7 +70,11 @@ export component HubPage inherits Rectangle {
                     ConsoleLabel {text:slot.material==""?"未设置":slot.material;height:28px;horizontal-alignment:center;}
                     ConsoleLabel {text:slot.locked?"不可覆盖":slot.brand==""?"本地品牌未记录":slot.brand;height:18px;font-size:12px;horizontal-alignment:center;color:ConsoleTheme.muted;}
                 }
-                TouchArea {enabled:i<HubUi.slots.length&&!HubUi.busy&&!slot.locked;clicked=>{root.selected=i;root.error="";}}
+                TouchArea {enabled:i<HubUi.slots.length&&!HubUi.busy&&!slot.locked;clicked=>{
+                    root.selected=i;root.error="";HubUi.edit-box=slot.box-id;HubUi.edit-index=slot.index;
+                    HubUi.editor-info={spool-record:{brand:slot.brand,material-type:slot.base-material,material-subtype:slot.series-name,color-code:slot.rgba,slicer-filament:slot.preset-code},slicer-filament-name:slot.series-name==""?slot.material:slot.series-name,color:slot.tint,temp-min:slot.temp-min,temp-max:slot.temp-max};
+                    HubUi.editing=true;
+                }}
             }
         }
         Rectangle {
@@ -74,11 +83,11 @@ export component HubPage inherits Rectangle {
                 padding:9px;spacing:8px;
                 VerticalLayout {
                     ConsoleLabel {text:root.error!=""?root.error:HubUi.status;font-size:13px;wrap:word-wrap;}
-                    ConsoleLabel {text:AppState.spool-staging-state==SpoolStagingState.Empty?"靠近读卡区扫描；未知标签可在屏幕建档":"已识别 · "+AppState.spool-staging-info.spool-record.brand+" "+root.material;font-size:12px;color:ConsoleTheme.muted;}
+                    ConsoleLabel {text:root.selected>=0?HubUi.slots[root.selected].machine-detail:AppState.spool-staging-state==SpoolStagingState.Empty?"本地显示实际耗材；机器使用兼容值":"已识别 · "+AppState.spool-staging-info.spool-record.brand+" "+root.material;font-size:11px;color:ConsoleTheme.muted;}
                 }
                 ConsoleButton {width:84px;text:HubUi.busy?"处理中":"手动写入";primary:true;
                     enabled:!HubUi.busy&&root.selected>=0&&root.selected<HubUi.slots.length&&AppState.spool-staging-state!=SpoolStagingState.Empty;
-                    clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,AppState.spool-staging-info.spool-record.brand==""?"Generic":AppState.spool-staging-info.spool-record.brand,"");}
+                    clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,AppState.spool-staging-info.spool-record.brand==""?"Generic":AppState.spool-staging-info.spool-record.brand,AppState.spool-staging-info.spool-record.material-subtype);}
                 }
             }
         }

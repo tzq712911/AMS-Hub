@@ -1,6 +1,6 @@
 # 验证记录
 
-最新 alpha.2 的交互、构建及限制见 [ALPHA2-NOTES.md](ALPHA2-NOTES.md)。下列为保留的 alpha.1 验证记录。
+最新 alpha.3 的交互、验证及限制见 [ALPHA3-NOTES.md](ALPHA3-NOTES.md)，alpha.2 记录见 [ALPHA2-NOTES.md](ALPHA2-NOTES.md)。下列为保留的 alpha.1 验证记录。
 
 日期：2026-10-28。未连接任何真实打印机，未刷写硬件。
 

@@ -3,7 +3,7 @@ from pathlib import Path
 import zipfile
 
 root = Path(__file__).resolve().parents[1]
-output = root / "dist/AMS-Hub-0.6.0-alpha.2-source.zip"
+output = root / "dist/AMS-Hub-0.6.0-alpha.3-source.zip"
 output.parent.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
     for path in root.rglob("*"):
@@ -14,5 +14,5 @@ with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             continue
         if any(part in {"target", "dist", "releases", ".git", "__pycache__"} for part in relative.parts):
             continue
-        archive.write(path, Path("AMS-Hub-0.6.0-alpha.2") / relative)
+        archive.write(path, Path("AMS-Hub-0.6.0-alpha.3") / relative)
 print(output)
