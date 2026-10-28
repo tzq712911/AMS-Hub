@@ -135,9 +135,9 @@ impl AppConfig {
         }
         if log {
             if missing {
-                term_error!("Missing printer(s) information");
+                term_error!("缺少打印机信息");
             } else if partial_missing {
-                term_error!("At least one printer is missing serial/access_code configuration");
+                term_error!("至少一台打印机缺少序列号/访问码配置");
             }
         }
 

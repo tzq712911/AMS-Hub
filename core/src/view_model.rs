@@ -2488,9 +2488,7 @@ impl BambuPrinterObserver for ViewModel {
             //       Or switch to a message loop notifications (which is a major change to the code, but more correct for these types of apps)
             //       So here I know it arrives here only if boot is successful, but in other applications this might not be enough
             // if self.app_config.borrow().boot_completed() {
-            term_info!(&"-".repeat(62));
             term_info!("打印机 [{}] 连接成功", bambu_printer.printer_number);
-            term_info!(&"-".repeat(62));
             self.ui_weak
                 .unwrap()
                 .global::<crate::app::AppState>()
@@ -2858,19 +2856,16 @@ impl FrameworkObserver for ViewModel {
 
     fn on_initialization_completed(&self, status: bool) {
         if status {
-            term_info!(&"-".repeat(62));
             term_info!("初始化成功");
-            term_info!(&"-".repeat(62));
             self.ui_weak.unwrap().global::<crate::app::AppState>().invoke_initialization_completed();
         } else {
             // TODO: This event here goes to the AppState and not to Framework, think about that.
             self.ui_weak
                 .unwrap()
                 .global::<crate::app::AppState>()
-                .invoke_boot_failed("Boot Failed\nScroll Up for Details".to_shared_string());
-            term_info!(&"x".repeat(44));
-            term_info!("初始化失败 - 请检查错误并修复后重启");
-            term_info!(&"x".repeat(44));
+                .invoke_boot_failed("启动失败\n请检查下方日志".to_shared_string());
+            term_info!("初始化失败：未配置打印机");
+            term_info!("请通过网页配置界面添加打印机后重启设备");
         }
     }
 }
