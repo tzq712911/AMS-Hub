@@ -1,6 +1,10 @@
 extern crate alloc;
 #[path="../../core/src/hub_protocol.rs"]
 pub mod protocol;
+#[path="../../core/src/load_transition.rs"]
+pub mod load_transition;
+#[path="../../core/src/console_validation.rs"]
+pub mod console_validation;
 #[cfg(test)] mod tests {
     use super::protocol::*;
     fn actual()->Filament{Filament{vendor:"Bambu Lab".into(),material:"PLA".into(),subtype:"Bambu PLA Lite".into(),rgba:"4DAFDAFF".into()}}
