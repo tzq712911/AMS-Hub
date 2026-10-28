@@ -1,0 +1,9 @@
+**/target/
+preview/screenshots/
+dist/
+**/__pycache__/
+*.pyc
+*.log
+.venv/
+local-config*.json
+*.credentials.json

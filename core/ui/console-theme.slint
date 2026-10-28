@@ -1,0 +1,36 @@
+export global ConsoleTheme {
+    out property <color> background: #141414;
+    out property <color> panel: #242424;
+    out property <color> field: #343434;
+    out property <color> text: #eeeeee;
+    out property <color> muted: #a4a4a4;
+    out property <color> accent: #adfa55;
+    out property <color> error: #ff8b82;
+}
+
+export component ConsoleButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback clicked;
+    preferred-height: 40px;
+    min-height: 28px;
+    border-radius: 9px;
+    background: !enabled ? #292929 : primary ? (touch.pressed ? #8cce40 : ConsoleTheme.accent) : touch.pressed ? #484848 : ConsoleTheme.field;
+    Text {
+        text: root.text;
+        color: !root.enabled ? #777777 : root.primary ? #111111 : ConsoleTheme.text;
+        font-size: 17px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    touch := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
+}
+
+export component ConsoleLabel inherits Text {
+    font-size: 16px;
+    color: ConsoleTheme.text;
+    vertical-alignment: center;
+    overflow: elide;
+}

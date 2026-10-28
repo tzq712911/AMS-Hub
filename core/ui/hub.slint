@@ -1,0 +1,55 @@
+import { AppState, SpoolStagingState } from "app.slint";
+import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
+import { ComboBox } from "std-widgets.slint";
+
+export struct HubSlot { box-id:int, index:int, label:string, rgba:string, locked:bool }
+export global HubUi {
+    in-out property <bool> visible:false;
+    in-out property <bool> busy:false;
+    in-out property <string> status;
+    in-out property <string> brand-name:"AMS-Hub";
+    in-out property <string> host;
+    in-out property <[HubSlot]> slots;
+    callback refresh;
+    callback apply(box-id:int,index:int,material:string,rgba:string,vendor:string,subtype:string)->string;
+}
+export component HubPage inherits Rectangle {
+    background:ConsoleTheme.background;
+    property <int> selected:-1;
+    property <string> error;
+    property <string> material:AppState.spool-staging-info.spool-record.material-type;
+    property <string> rgba:AppState.spool-staging-info.spool-record.color-code;
+    VerticalLayout {
+        padding:10px; spacing:8px;
+        HorizontalLayout {
+            height:35px;
+            ConsoleButton {width:48px;text:"‹";clicked=>{HubUi.visible=false;}}
+            ConsoleLabel {text:HubUi.brand-name;font-size:21px;}
+            ConsoleButton {width:70px;text:"读取";enabled:!HubUi.busy;clicked=>{root.selected=-1;HubUi.refresh();}}
+        }
+        ConsoleLabel {text:HubUi.host==""?"在设置网页配置多品牌连接":HubUi.host;font-size:13px;color:ConsoleTheme.muted;height:22px;}
+        HorizontalLayout {
+            height:42px;
+            for slot[i] in HubUi.slots: ConsoleButton {
+                text:slot.label+(slot.locked?" 🔒":"");
+                primary:root.selected==i;
+                enabled:!HubUi.busy&&!slot.locked;
+                clicked=>{root.selected=i;root.error="";}
+            }
+        }
+        Rectangle {
+            background:ConsoleTheme.panel;border-radius:10px;
+            VerticalLayout {
+                padding:10px;spacing:4px;
+                ConsoleLabel {text:AppState.spool-staging-state==SpoolStagingState.Empty?"请先扫描已绑定耗材标签":"已扫描 · "+root.material+" · "+root.rgba;font-size:16px;}
+                ConsoleLabel {text:"同步类型、颜色；U1 使用 Generic 品牌。此版本不写 K 值。";font-size:12px;color:ConsoleTheme.muted;wrap:word-wrap;}
+                ConsoleLabel {text:root.error!=""?root.error:HubUi.status;font-size:13px;wrap:word-wrap;}
+            }
+        }
+        ConsoleButton {
+            height:42px;primary:true;text:HubUi.busy?"等待机器读回…":"确认写入所选槽位";
+            enabled:!HubUi.busy&&root.selected>=0&&root.selected<HubUi.slots.length&&AppState.spool-staging-state!=SpoolStagingState.Empty;
+            clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,"Generic","");}
+        }
+    }
+}

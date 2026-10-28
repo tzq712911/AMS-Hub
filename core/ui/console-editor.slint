@@ -1,0 +1,142 @@
+import { ScrollView } from "std-widgets.slint";
+import { AppState, AppBackend, ControlState, SpoolStagingState, UiTray, UiConsolePreset, UiConsoleCalibration, UiSpoolRecordDisplay } from "app.slint";
+import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
+
+export component ConsoleEditor inherits Rectangle {
+    in property <bool> registration-mode: false;
+    background: ConsoleTheme.background;
+    property <int> tray-index: Math.max(0, AppState.tray-selected-tray-index);
+    property <UiTray> tray: AppState.trays-state[tray-index];
+    property <bool> use-scan: !registration-mode && AppState.spool-staging-state != SpoolStagingState.Empty;
+    property <UiSpoolRecordDisplay> definition: registration-mode ? AppBackend.get-spool-tag-definition-display(AppState.new-tag-scan-definition-type, AppState.new-tag-scan-definition-info, 0) : {};
+    property <[UiConsolePreset]> presets: AppBackend.get-console-presets();
+    property <int> selected-preset: -1;
+    property <string> preset-code: selected-preset >= 0 ? presets[selected-preset].code : registration-mode ? definition.spool-record.slicer-filament : use-scan ? AppState.spool-staging-info.spool-record.slicer-filament : AppBackend.get-slot-display(tray.id).preset-code;
+    property <string> material-name: selected-preset >= 0 ? presets[selected-preset].name : registration-mode ? definition.slicer-filament-name : use-scan ? AppState.spool-staging-info.slicer-filament-name : AppBackend.get-slot-display(tray.id).slicer-name;
+    property <string> material-type: selected-preset >= 0 ? presets[selected-preset].material : registration-mode ? definition.spool-record.material-type : use-scan ? AppState.spool-staging-info.spool-record.material-type : tray.filament.material;
+    property <int> temp-min: selected-preset >= 0 ? presets[selected-preset].temp-min : registration-mode ? definition.temp-min : use-scan ? AppState.spool-staging-info.temp-min : AppBackend.get-slot-display(tray.id).temp-min;
+    property <int> temp-max: selected-preset >= 0 ? presets[selected-preset].temp-max : registration-mode ? definition.temp-max : use-scan ? AppState.spool-staging-info.temp-max : AppBackend.get-slot-display(tray.id).temp-max;
+    property <int> selected-color: registration-mode && definition.spool-record.color-code == "" ? 0 : -1;
+    property <[color]> colors: [#00ce9b,#71cce1,#f01b23,#ffffff,#202020,#f5d14b,#ff8b3d,#a083cc,#969696,#287fc2,#e383ba,#805838];
+    property <[string]> color-codes: ["00CE9BFF","71CCE1FF","F01B23FF","FFFFFFFF","202020FF","F5D14BFF","FF8B3DFF","A083CCFF","969696FF","287FC2FF","E383BAFF","805838FF"];
+    property <color> filament-color: selected-color >= 0 ? colors[selected-color] : registration-mode ? definition.color : use-scan ? AppState.spool-staging-info.color : tray.filament.color;
+    property <string> color-code: selected-color >= 0 ? color-codes[selected-color] : registration-mode ? definition.spool-record.color-code : use-scan ? AppState.spool-staging-info.spool-record.color-code : AppBackend.get-slot-display(tray.id).color-code;
+    property <[UiConsoleCalibration]> calibrations: registration-mode ? [] : AppBackend.get-console-calibrations(tray.id, preset-code);
+    property <int> selected-calibration: -1;
+    property <int> picker: 0;
+    property <string> notice;
+    property <bool> submitted: false;
+    function close() { AppState.control-state = ControlState.Ready; }
+    function clear-edits() { selected-preset = -1; selected-color = registration-mode && definition.spool-record.color-code == "" ? 0 : -1; selected-calibration = -1; notice = ""; submitted = false; }
+    VerticalLayout {
+        padding: 10px; spacing: 8px;
+        HorizontalLayout {
+            height: 34px; spacing: 9px;
+            ConsoleButton { width: 48px; text: "‹"; clicked => { root.close(); } }
+            ConsoleLabel { text: root.registration-mode ? "绑定新标签" : "编辑耗材"; font-size: 21px; }
+            ConsoleLabel { text: root.registration-mode ? "本地保存" : root.tray.id >= 254 ? "外置料架" : "槽位 " + (Math.mod(root.tray.id,4) + 1); color: ConsoleTheme.muted; horizontal-alignment: right; }
+        }
+        Rectangle {
+            background: ConsoleTheme.panel; border-radius: 12px;
+            VerticalLayout {
+                padding: 10px; spacing: 4px;
+                if !root.registration-mode: HorizontalLayout {
+                    height: 28px; spacing: 8px;
+                    ConsoleButton { text: "机器当前值"; height: 28px; primary: !root.use-scan; clicked => { root.use-scan = false; root.clear-edits(); } }
+                    ConsoleButton { text: "使用扫描值"; height: 28px; primary: root.use-scan; enabled: AppState.spool-staging-state != SpoolStagingState.Empty; clicked => { root.use-scan = true; root.clear-edits(); } }
+                }
+                if root.registration-mode: ConsoleLabel { text: "标签 " + AppState.new-tag-scan-tag-id; color: ConsoleTheme.muted; font-size: 13px; height: 28px; }
+                HorizontalLayout {
+                    height: 32px; spacing: 10px;
+                    ConsoleLabel { width: 100px; text: "耗材"; }
+                    ConsoleButton { text: (root.material-name == "" ? "选择耗材" : root.material-name) + "  ▾"; clicked => { root.picker = 1; } }
+                }
+                HorizontalLayout {
+                    height: 30px; spacing: 10px;
+                    ConsoleLabel { width: 100px; text: "颜色"; }
+                    Rectangle {
+                        width: 30px; border-radius: 7px; background: root.filament-color;
+                        TouchArea { clicked => { root.picker = 3; } }
+                    }
+                    ConsoleButton { text: root.color-code == "" ? "选择颜色  ▾" : root.color-code + "  ▾"; clicked => { root.picker = 3; } }
+                }
+                HorizontalLayout {
+                    height: 28px;
+                    ConsoleLabel { width: 110px; text: "喷嘴温度"; }
+                    ConsoleLabel { text: root.temp-min + " — " + root.temp-max + " °C"; color: ConsoleTheme.muted; }
+                }
+                if !root.registration-mode: HorizontalLayout {
+                    height: 32px; spacing: 10px;
+                    ConsoleLabel { width: 100px; text: "动态压力 K"; }
+                    ConsoleButton { text: (root.selected-calibration < 0 ? "自动匹配 / 默认" : root.calibrations[root.selected-calibration].name) + "  ▾"; clicked => { root.picker = 2; } }
+                }
+                if root.registration-mode: ConsoleLabel { height: 32px; text: "K 校准记录可在选择槽位后设置"; color: ConsoleTheme.muted; font-size: 13px; }
+                ConsoleLabel { height: 18px; font-size: 12px; color: ConsoleTheme.muted; text: root.registration-mode ? "仅保存本地对应关系，不改写原标签" : "只修改耗材信息，不执行进退料或加热"; }
+            }
+        }
+        HorizontalLayout {
+            height: 40px; spacing: 8px;
+            ConsoleLabel { text: root.notice; color: root.submitted ? ConsoleTheme.accent : ConsoleTheme.error; font-size: 12px; wrap: word-wrap; }
+            ConsoleButton { width: 75px; text: "重置"; clicked => { root.clear-edits(); } }
+            ConsoleButton {
+                width: 95px; primary: true; text: root.submitted ? "处理中" : root.registration-mode ? "保存绑定" : "确认写入";
+                enabled: !root.submitted && (root.registration-mode || AppState.some-printer-connected) && root.material-type != "";
+                clicked => {
+                    if root.registration-mode {
+                        root.notice = AppBackend.register-console-tag(AppState.new-tag-scan-tag-id, root.preset-code, root.material-type, root.color-code);
+                        root.submitted = root.notice == "";
+                    } else if root.use-scan && root.selected-preset < 0 && root.selected-color < 0 && root.selected-calibration < 0 {
+                        AppBackend.set-staging-to-tray(root.tray.id);
+                    } else {
+                        root.notice = AppBackend.configure-console-slot(root.tray.id, root.preset-code, root.material-type, root.color-code, root.selected-calibration < 0 ? -1 : root.calibrations[root.selected-calibration].id);
+                        root.submitted = root.notice == "";
+                        if root.submitted { root.notice = "设置已发送，请核对机器回报"; }
+                    }
+                }
+            }
+        }
+    }
+    if picker != 0: Rectangle {
+        background: ConsoleTheme.background;
+        VerticalLayout {
+            padding: 10px; spacing: 10px;
+            HorizontalLayout {
+                height: 38px;
+                ConsoleLabel { text: root.picker == 1 ? "选择耗材" : root.picker == 2 ? "选择 K 校准记录" : "选择颜色"; font-size: 21px; }
+                ConsoleButton { width: 70px; text: "返回"; clicked => { root.picker = 0; } }
+            }
+            if root.picker == 1: ScrollView {
+                VerticalLayout {
+                    spacing: 5px;
+                    for preset[index] in root.presets: ConsoleButton {
+                        height: 42px; text: preset.name;
+                        clicked => { root.selected-preset = index; root.selected-calibration = -1; root.picker = 0; root.submitted = false; root.notice = ""; }
+                    }
+                }
+            }
+            if root.picker == 2: ScrollView {
+                VerticalLayout {
+                    spacing: 5px;
+                    ConsoleButton { text: "自动匹配 / 默认"; clicked => { root.selected-calibration = -1; root.picker = 0; root.submitted = false; } }
+                    for calibration[index] in root.calibrations: ConsoleButton {
+                        text: calibration.name; height: 42px;
+                        clicked => { root.selected-calibration = index; root.picker = 0; root.submitted = false; }
+                    }
+                    if root.calibrations.length == 0: ConsoleLabel { text: "尚无匹配此耗材和喷嘴的校准记录"; height: 40px; font-size: 14px; }
+                }
+            }
+            if root.picker == 3: VerticalLayout {
+                spacing: 12px;
+                for row in [0,1,2]: HorizontalLayout {
+                    spacing: 12px;
+                    for col in [0,1,2,3]: Rectangle {
+                        background: root.colors[row * 4 + col]; border-radius: 10px;
+                        height: 64px;
+                        border-width: 1px; border-color: #777777;
+                        TouchArea { clicked => { root.selected-color = row * 4 + col; root.picker = 0; root.submitted = false; root.notice = ""; } }
+                    }
+                }
+            }
+        }
+    }
+}

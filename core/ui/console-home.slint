@@ -1,0 +1,102 @@
+import { AppState, AppBackend, ControlState, SpoolStagingState, UiTray, UiTrayState, UiFilamentState } from "app.slint";
+import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
+import { HubUi } from "hub.slint";
+
+component SlotCard inherits Rectangle {
+    in property <UiTray> tray;
+    in property <string> label;
+    callback clicked;
+    background: ConsoleTheme.panel;
+    border-radius: 10px;
+    border-width: touch.pressed || tray.used-in-print ? 2px : 0px;
+    border-color: ConsoleTheme.accent;
+    VerticalLayout {
+        padding: 8px;
+        spacing: 6px;
+        ConsoleLabel { text: root.label; horizontal-alignment: center; font-size: 14px; color: ConsoleTheme.muted; height: 20px; }
+        HorizontalLayout {
+          alignment: center;
+          spool := Rectangle {
+            horizontal-stretch: 0;
+            width: 46px; height: 46px;
+            border-radius: 23px;
+            background: root.tray.filament.state == UiFilamentState.Known ? root.tray.filament.color : #555555;
+            border-width: 4px; border-color: #777777;
+            Rectangle {
+                x: 17px; y: 17px; width: 12px; height: 12px;
+                border-radius: 6px; background: #343434;
+            }
+          }
+        }
+        ConsoleLabel {
+            height: 28px;
+            text: root.tray.filament.state == UiFilamentState.Known ? root.tray.filament.material : "未设置";
+            font-size: 17px;
+            horizontal-alignment: center;
+        }
+        ConsoleLabel {
+            height: 18px; font-size: 12px;
+            horizontal-alignment: center;
+            color: root.tray.spool-state == UiTrayState.Loaded ? ConsoleTheme.accent : ConsoleTheme.muted;
+            text: root.tray.spool-state == UiTrayState.Loaded ? "使用中" : root.tray.spool-state == UiTrayState.Empty ? "空槽" : root.tray.spool-state == UiTrayState.Reading ? "识别中" : "K " + (root.tray.k == "" ? "默认" : root.tray.k);
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component ConsoleHome inherits Rectangle {
+    callback settings;
+    callback printers;
+    background: ConsoleTheme.background;
+    property <bool> staged: AppState.spool-staging-state != SpoolStagingState.Empty;
+    property <int> card-count: AppState.ams-exists.length == 0 ? 1 : AppState.curr-ams-id <= 3 ? 5 : 2;
+    VerticalLayout {
+        padding: 10px; spacing: 8px;
+        HorizontalLayout {
+            height: 34px; spacing: 8px;
+            ConsoleLabel { text: "耗材"; font-size: 22px; }
+            ConsoleLabel { text: AppState.some-printer-connected ? "● 已连接" : "○ 等待连接"; color: AppState.some-printer-connected ? ConsoleTheme.accent : ConsoleTheme.muted; font-size: 13px; }
+            ConsoleButton { width: 78px; text: "多品牌"; clicked => { HubUi.visible=true; } }
+            ConsoleButton { width: 60px; text: "设置"; clicked => { root.settings(); } }
+        }
+        HorizontalLayout {
+            height: 27px; spacing: 5px;
+            for ams-id in AppState.ams-exists: ConsoleButton {
+                text: "AMS " + (ams-id + 1);
+                height: 27px;
+                primary: AppState.curr-ams-id == ams-id;
+                clicked => { AppState.curr-ams-id = ams-id; }
+            }
+            if AppState.ams-exists.length == 0: ConsoleLabel { text: "等待 AMS 状态"; color: ConsoleTheme.muted; font-size: 13px; }
+        }
+        HorizontalLayout {
+            height: 147px; spacing: 7px;
+            for slot in (AppState.ams-exists.length == 0 ? [] : AppState.curr-ams-id <= 3 ? [0,1,2,3] : [0]): SlotCard {
+                width: (460px - (root.card-count - 1) * 7px) / root.card-count;
+                tray: AppState.trays-state[AppState.get-tray-index(AppState.curr-ams-id, slot)];
+                label: "槽位 " + (slot + 1);
+                clicked => { AppState.tray-selected(AppState.get-tray-index(AppState.curr-ams-id, slot)); }
+            }
+            SlotCard {
+                width: (460px - (root.card-count - 1) * 7px) / root.card-count;
+                tray: AppState.trays-state[AppState.displayed-extruder];
+                label: AppState.num-extruders == 1 ? "外置" : AppState.displayed-extruder == 0 ? "外置·右" : "外置·左";
+                clicked => { AppState.tray-selected(AppState.displayed-extruder); }
+            }
+        }
+        Rectangle {
+            background: ConsoleTheme.panel; border-radius: 9px;
+            HorizontalLayout {
+                padding: 9px; spacing: 8px;
+                Rectangle { width: 5px; border-radius: 2px; background: root.staged ? AppState.spool-staging-info.color : ConsoleTheme.accent; }
+                VerticalLayout {
+                    ConsoleLabel { text: AppState.control-state == ControlState.PostAction || AppState.control-state == ControlState.BootFailed ? AppState.user-message : root.staged ? "已识别 · " + AppState.spool-staging-info.spool-record.material-type : AppState.control-state == ControlState.Reading ? "正在读取标签…" : "将耗材标签靠近读卡区"; font-size: 14px; wrap: word-wrap; }
+                    if AppState.control-state != ControlState.PostAction && AppState.control-state != ControlState.BootFailed: ConsoleLabel { text: root.staged ? "点击目标槽位，核对后确认写入" : "支持已绑定标签与兼容耗材标签"; font-size: 12px; color: ConsoleTheme.muted; }
+                }
+                if root.staged: ConsoleButton { width: 58px; text: "清除"; clicked => { AppBackend.clear-staging(); } }
+                if AppState.control-state == ControlState.PostAction: ConsoleButton { width: 58px; text: "完成"; clicked => { AppState.control-state = ControlState.Ready; AppState.stop-highlight-tray(); } }
+                if AppState.num-extruders == 2: ConsoleButton { width: 58px; text: "切换"; clicked => { AppState.displayed-extruder = 1 - AppState.displayed-extruder; } }
+            }
+        }
+    }
+}

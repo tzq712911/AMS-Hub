@@ -1,0 +1,75 @@
+// Desktop fixture only. These values are not printer telemetry.
+import { ConsoleHome } from "console-home.slint";
+import { ConsoleEditor } from "console-editor.slint";
+import { ConsoleSettings } from "console-settings.slint";
+import { HubPage, HubUi, HubSlot } from "hub.slint";
+import { AppState, AppBackend, ControlState, UiTrayState, UiFilamentState, SpoolStagingState, UiConsolePreset, UiSlotDisplay } from "app.slint";
+import "fonts/ConsoleSans.ttf";
+
+export { AppState, AppBackend }
+export { HubUi, HubSlot }
+
+export component ConsolePreview inherits Window {
+    title: "SpoolEase Console · UI Preview";
+    width: 480px; height: 320px;
+    default-font-family: "Console Sans";
+    in-out property <int> preview-mode: 0;
+    in-out property <bool> hub-mode: false;
+    in-out property <string> simulation-log;
+    public function scan-demo(petg: bool) {
+        AppState.control-state = ControlState.Ready;
+        AppState.spool-staging-state = SpoolStagingState.Scanned;
+        AppState.spool-staging-info = {
+            spool-record: { id:petg?"002":"001", material-type:petg?"PETG":"PLA", color-code:petg?"71CCE1FF":"00CE9BFF", slicer-filament:petg?"GFG99":"GFA00",ext-has-k:false },
+            color:petg?#71cce1:#00ce9b, slicer-filament-name:petg?"Generic PETG":"Bambu PLA Basic",temp-min:petg?220:190,temp-max:petg?270:240
+        };
+    }
+    public function home() { root.preview-mode=0; AppState.control-state=ControlState.Ready; }
+    public function show-message(message:string) { AppState.user-message=message; AppState.control-state=ControlState.PostAction; }
+    public function simulate-slot(tray-id:int, material:string, tint:color) {
+        if tray-id>=0 && tray-id<4 { AppState.trays-state[tray-id+2].filament = {state:UiFilamentState.Known,material:material,color:tint}; }
+    }
+    public function load-hub-demo(profile:int, locked:bool) {
+        HubUi.brand-name=profile==1?"Snapmaker U1":"Anycubic ACE";
+        HubUi.host="192.0.2.10 · 模拟地址";
+        HubUi.slots=[
+            {box-id:0,index:0,label:profile==1?"T1 · PLA":"槽 1 · PLA",rgba:"00CE9BFF",locked:profile==1&&locked},
+            {box-id:0,index:1,label:profile==1?"T2 · PLA":"槽 2 · PLA",rgba:"71CCE1FF",locked:false},
+            {box-id:0,index:2,label:profile==1?"T3 · PLA":"槽 3 · PLA",rgba:"F01B23FF",locked:false},
+            {box-id:0,index:3,label:profile==1?"T4 · PETG":"槽 4 · PETG",rgba:"FFFFFFFF",locked:false}
+        ];
+    }
+    public function simulate-hub-slot(index:int,material:string,rgba:string) {
+        HubUi.slots[index].label="槽 "+(index+1)+" · "+material;
+        HubUi.slots[index].rgba=rgba;
+    }
+    out property <[UiConsolePreset]> demo-presets: [
+        { code: "GFA00", name: "Bambu PLA Basic", material: "PLA", temp-min: 190, temp-max: 240 },
+        { code: "GFA01", name: "Bambu PLA Matte", material: "PLA", temp-min: 190, temp-max: 240 },
+        { code: "GFG99", name: "Generic PETG", material: "PETG", temp-min: 220, temp-max: 270 }
+    ];
+    out property <UiSlotDisplay> demo-slot: { preset-code: "GFA00", slicer-name: "Bambu PLA Basic", color-code: "00CE9BFF", temp-min: 190, temp-max: 240, pa: "0.020", filament-title: "Bambu PLA Basic" };
+    init => {
+        AppState.control-state = ControlState.Ready;
+        AppState.some-printer-connected = true;
+        AppState.curr-printer = "X2D · 演示数据";
+        AppState.num-extruders = 2;
+        AppState.ams-exists = [0];
+        AppState.tray-selected-tray-index = 2;
+        AppState.trays-state = [
+            { id: 255, external: true, spool-state: UiTrayState.Empty, filament: { state: UiFilamentState.Unknown } },
+            { id: 254, external: true, spool-state: UiTrayState.Empty, filament: { state: UiFilamentState.Unknown } },
+            { id: 0, spool-state: UiTrayState.Loaded, filament: { state: UiFilamentState.Known, material: "PLA", color: #00ce9b }, k: "0.020", used-in-print: true },
+            { id: 1, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PLA", color: #71cce1 }, k: "0.022" },
+            { id: 2, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PLA", color: #f01b23 }, k: "0.019" },
+            { id: 3, spool-state: UiTrayState.Ready, filament: { state: UiFilamentState.Known, material: "PETG", color: #ffffff }, k: "0.032" }
+        ];
+        AppState.spool-staging-state = SpoolStagingState.Scanned;
+        AppState.spool-staging-info = { spool-record: { id: "001", material-type: "PLA", color-code: "00CE9BFF", slicer-filament: "GFA00", ext-has-k: true }, color: #00ce9b, slicer-filament-name: "Bambu PLA Basic", temp-min: 190, temp-max: 240 };
+    }
+    if !hub-mode && !HubUi.visible && preview-mode == 0 && AppState.control-state != ControlState.TraySelected: ConsoleHome { settings=>{root.preview-mode=3;} }
+    if !hub-mode && !HubUi.visible && (preview-mode == 1 || (preview-mode == 0 && AppState.control-state == ControlState.TraySelected)): ConsoleEditor { }
+    if preview-mode == 2: ConsoleEditor { registration-mode: true; }
+    if preview-mode == 3: ConsoleSettings {back=>{root.home();}}
+    if (hub-mode || HubUi.visible) && preview-mode != 3: HubPage { }
+}

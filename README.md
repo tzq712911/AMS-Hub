@@ -1,1 +1,69 @@
 # AMS-Hub
+
+WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制台，基于 [SpoolEase](https://github.com/yanshay/SpoolEase) 公开源码 `3532f8d962dd1a95c7d4ebb37beddca5bbefd39a` 修改。
+
+## 两个独立测试版本
+
+| 版本 | 文件 | 状态 |
+| --- | --- | --- |
+| 拓竹中文 V1 | `releases/bambu-v1/SpoolEase-console.zh.1-app.bin` | 已编译，保留原文件和校验值 |
+| 多品牌 V2 | `releases/multibrand-v2/AMS-Hub-0.6.0-alpha.1-app.bin` | 已编译，U1 / Anycubic 为实验性适配 |
+
+两个版本均未经过此项目的实机验证。编译成功不等于已验证 X2D、U1、ACE 或官方切片软件同步；各固件的 `build-info.json` 提供 SHA256、大小和构建状态。
+
+镜像是 **application-only**，不是从地址 0 烧录的合并镜像。保留上游 16 MiB Flash、两个 7 MiB OTA 应用分区，刷写前核对实际分区和开发板。原拓竹 V1 的完整源码归档在 `releases/bambu-v1/`，便于分别回归测试。
+
+## 已实现范围
+
+- 拓竹：保留现有 LAN / NFC / 槽位设置路径；中文深色界面、预设和颜色选择、已有 K 校准记录选择。
+- U1：Moonraker `:7125` 查询 `print_task_config`，通过 `SET_PRINT_FILAMENT_CONFIG` 设置工具头身份；查询官方 RFID 锁定状态，不强制覆盖；写入后回读比对。当前 UI 默认写 `Generic` 品牌。
+- Anycubic：HTTP `:18910` 本地签名认证、AES-CBC 解密打印机签发的客户端凭据、TLS MQTT `:9883`、`multiColorBox/setInfo`，延迟查询 ACE 状态；只以类型、RGB 比对判定成功。品牌、温度和 K 不作为已同步字段。
+- U1 / ACE 的初版流程为扫描耗材 → 读取机器 → 选择已报告的槽位 → 确认写入。尚未实现按进料事件自动选择目标槽位。
+- Anycubic 适配只适用于具有该 LAN 协议和 ACE 的机型/固件；没有承诺整个品牌所有 FDM 机器兼容。外置料架 `extfilbox` 暂未接入。
+
+主界面隐藏库存操作；上游库存、称重和配置后端仍保留。跨品牌不转发 Bambu 预设 ID 或 `cali_idx`。
+
+## 交互模拟器
+
+双击仓库根目录 **`启动交互模拟器.cmd`**。会打开设备窗口（实际固件 Slint 组件，480×320）和模拟控制台，可切换三个机型、扫描两种耗材、编辑、选槽，并模拟成功、超时、读回不一致、离线和官方 RFID 锁定。
+
+当前电脑可直接运行；其他电脑需要 Python 和匹配的 Slint 绑定：
+
+```powershell
+python -m pip install slint==1.11.0a1
+python scripts/simulate_ui.py
+python scripts/simulate_ui.py --self-test
+```
+
+模拟器不建立网络连接。测试通过只说明模拟交互和状态处理符合预期。
+
+![固件首页（模拟数据）](docs/screenshots/home.png)
+
+验证细节见 [VALIDATION.md](VALIDATION.md)。
+
+## 多品牌连接
+
+在设备的连接设置网页验证访问密钥后，配置 **AMS-Hub 多品牌连接（V2）** 并重启：
+
+```json
+{"brand":"u1","host":"192.168.1.100","api_key":"","ca_pem":"","tls_name":""}
+```
+
+Anycubic 使用 `"brand":"anycubic"`，机器需切换 LAN 模式。客户端证书和密钥来自打印机本地握手，不存入仓库。`ca_pem` 为空时使用该 LAN 协议的自签名 TLS 模式；可配置可信 CA 和 `tls_name` 开启服务端校验。仅在可信局域网中使用，配置中的密钥不要提交到 Git。
+
+## 构建
+
+当前工作区的本地工具链入口：
+
+```powershell
+./scripts/build.ps1 -Mirror
+./scripts/package.ps1
+```
+
+工具链为 `esp1`（Espressif Rust / ESP32-S3）、VS2022 C++ Build Tools、espflash 4.6.0。脚本使用仓库旁 `tools/` 的本地工具链，并把 V2 构建缓存放在本仓库 `target/`，不改写 V1 工程。依赖修订由 `core/Cargo.lock` 固定；首次构建成功后应使用 `--locked`。
+
+## 许可与来源
+
+保留上游 [LICENSE.md](LICENSE.md)：Apache-2.0 **附 Commons Clause 限制**，不是无限制商业许可。衍生固件仍受该限制，销售或提供相关商业服务前需核对条款。字体许可证位于 `core/ui/fonts/OFL.txt`；Slint 和其他依赖按各自许可证使用和分发。
+
+协议依据列于 [COMPATIBILITY_RESEARCH.md](COMPATIBILITY_RESEARCH.md)。上游原说明另存为 `README-UPSTREAM.md`；历史 V1 说明见 `README-CN.md`、`CUSTOMIZATION.md`。

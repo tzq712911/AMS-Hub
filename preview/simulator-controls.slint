@@ -1,0 +1,33 @@
+import { Button, ComboBox, VerticalBox, HorizontalBox, ScrollView } from "std-widgets.slint";
+export component SimulatorControls inherits Window {
+    title: "AMS-Hub · 模拟控制台（无打印机连接）";
+    width: 420px; height: 560px;
+    background: #181818;
+    in-out property <string> log: "请选择机型，扫描模拟标签，然后在 480×320 窗口操作。";
+    in-out property <int> profile: 0;
+    in-out property <int> scenario: 0;
+    callback change-profile(int);
+    callback scan(int);
+    callback page(int);
+    callback change-scenario(int);
+    callback reset;
+    VerticalBox {
+        padding: 16px; spacing: 10px;
+        Text {text:"AMS-Hub 交互模拟器";color:#adfa55;font-size:24px;}
+        Text {text:"左侧设备窗口使用固件 Slint 组件\n所有状态均为模拟数据，不会访问局域网或写入机器。";color:#dddddd;font-size:14px;wrap:word-wrap;}
+        ComboBox {model:["拓竹 X2D + AMS 2 Pro", "Snapmaker U1", "Anycubic + ACE"];current-index <=> root.profile; selected(value)=>{root.change-profile(self.current-index);}}
+        HorizontalBox {
+            Button {text:"扫描 PLA 绿色";clicked=>{root.scan(0);}}
+            Button {text:"扫描 PETG 蓝色";clicked=>{root.scan(1);}}
+        }
+        HorizontalBox {
+            Button {text:"耗材首页";clicked=>{root.page(0);}}
+            Button {text:"编辑耗材";clicked=>{root.page(1);}}
+            Button {text:"连接设置";clicked=>{root.page(3);}}
+        }
+        ComboBox {model:["读回成功", "读回超时", "读回不一致", "连接断开", "U1 官方 RFID 锁定"];current-index <=> root.scenario;selected(value)=>{root.change-scenario(self.current-index);}}
+        Text {text:"U1 / ACE：点击读取 → 选择槽位 → 确认写入。\n拓竹：点击槽位 → 选择材质 / 颜色 / K → 确认。";color:#bbbbbb;font-size:13px;wrap:word-wrap;}
+        ScrollView {vertical-stretch:1;Text {text:root.log;color:#eeeeee;font-size:13px;wrap:word-wrap;}}
+        Button {text:"重置演示";clicked=>{root.reset();}}
+    }
+}
