@@ -877,14 +877,19 @@ impl ViewModel {
         // handler for request from UI to move to staging, need to work only on selected printer
         // this way of doing it (with many 'moved' might be due to being called when printer is already borrowed, or staging borrowed(less likely) )
         let moved_filament_staging = self.filament_staging.clone();
-        let moved_bambu_printer = self.bambu_printer_model.clone();
+        // `.clone()` on the model would auto-deref via `Deref` and panic on an empty
+        // printer list (first boot with no configured printer). Fetch the selected
+        // printer safely so a missing printer is a no-op instead of a crash.
+        let moved_bambu_printer = self.bambu_printer_model.printers.get(self.bambu_printer_model.index).cloned();
         let moved_view_model = self.view_model.clone().unwrap();
         let moved_ui = self.ui_weak.clone();
         self.ui_weak
             .unwrap()
             .global::<crate::app::AppBackend>()
             .on_set_staging_to_tray(move |tray_id: i32| {
-                Self::set_staging_to_tray(&moved_view_model, &moved_filament_staging, &moved_bambu_printer, &moved_ui, tray_id);
+                if let Some(printer) = &moved_bambu_printer {
+                    Self::set_staging_to_tray(&moved_view_model, &moved_filament_staging, printer, &moved_ui, tray_id);
+                }
             });
 
         let vm = self.view_model.as_ref().unwrap().clone();
