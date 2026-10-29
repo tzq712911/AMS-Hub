@@ -2194,7 +2194,6 @@ dependencies = [
 [[package]]
 name = "esp-hal-app-framework"
 version = "0.6.1"
-source = "git+https://github.com/yanshay/esp-hal-app/?tag=0.6.1#43daad9d1795b21a7f4ea3ef610b328cabbfeda1"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -2324,7 +2323,6 @@ dependencies = [
 [[package]]
 name = "esp-mbedtls"
 version = "0.1.0"
-source = "git+https://github.com/yanshay/esp-mbedtls.git?branch=yanshay_esp-hal-1.0.0-with-session-reuse#93a643c0daf440c40d67fdacfc44d2ce3d8c7f16"
 dependencies = [
  "cfg-if",
  "critical-section",

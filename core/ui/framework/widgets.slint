@@ -1,7 +1,8 @@
+import { ConsoleTheme } from "../console-theme.slint";
 import { ListView } from "std-widgets.slint";
 
 export component MyText inherits Text {
-    font-size: 20px;
+    font-size:20px * ConsoleTheme.text-scale;
     color: black;
 }
 
@@ -30,7 +31,7 @@ export component MyButton inherits Rectangle {
         width: parent.width - text-padding * 2;
         horizontal-alignment: root.horizontal-alignment;
         text: root.text;
-        font-size: 20px;
+        font-size:20px * ConsoleTheme.text-scale;
         font-weight: 400 + (enabled && area.pressed && type == ButtonType.Standard ? 500 : 0);
         wrap: word-wrap;
         color: enabled ? text-color : #666666;
@@ -91,7 +92,7 @@ export component Title inherits Rectangle {
         height: root.height;
         text: title-timer.text-index == 0 ? text : text2;
         color: text-color;
-        font-size: 20px;
+        font-size:20px * ConsoleTheme.text-scale;
     }
 }
 
@@ -196,7 +197,7 @@ export component Selector inherits Rectangle {
                                 border-width: 1px;
                                 Text {
                                     text: root.options-list[first-item + i].text;
-                                    font-size: 20px;
+                                    font-size:20px * ConsoleTheme.text-scale;
                                 }
                             }
 
@@ -239,7 +240,7 @@ export component Selector inherits Rectangle {
                     Text {
                         width: parent.width;
                         height: parent.height;
-                        font-size: 20px;
+                        font-size:20px * ConsoleTheme.text-scale;
                         vertical-alignment: center;
                         horizontal-alignment: center;
                         text: "▲";
@@ -267,7 +268,7 @@ export component Selector inherits Rectangle {
                         height: thumb-height;
                         background: lime;
                         Text {
-                            font-size: 20px;
+                            font-size:20px * ConsoleTheme.text-scale;
                             text: "▲\n▼";
                         }
                     }
@@ -309,7 +310,7 @@ export component Selector inherits Rectangle {
                     Text {
                         width: parent.width;
                         height: parent.height;
-                        font-size: 20px;
+                        font-size:20px * ConsoleTheme.text-scale;
                         vertical-alignment: center;
                         horizontal-alignment: center;
                         text: "▼";

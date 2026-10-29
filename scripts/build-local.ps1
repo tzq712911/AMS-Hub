@@ -1,4 +1,9 @@
-param([switch]$Mirror)
+param(
+    [switch]$Mirror,
+    [switch]$Offline,
+    [string]$TargetDir = $env:CARGO_TARGET_DIR,
+    [string]$TempDir
+)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
 $taskCargo = Join-Path $env:USERPROFILE '.cargo/bin/cargo.exe'
@@ -13,12 +18,20 @@ $taskVs = & $taskVsWhere -latest -products '*' -requires Microsoft.VisualStudio.
 if (-not $taskVs) { throw 'Visual Studio C++ workload is missing or installation is incomplete.' }
 $taskCmake = Join-Path $taskVs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin'
 if (Test-Path $taskCmake) { $env:PATH = "$taskCmake;$env:PATH" }
-$env:CARGO_TARGET_DIR = Join-Path $taskRoot 'target'
+if (-not $TargetDir) { $TargetDir = Join-Path $taskRoot 'target' }
+$env:CARGO_TARGET_DIR = [System.IO.Path]::GetFullPath($TargetDir)
+if ($TempDir) {
+    $taskTemp = [System.IO.Path]::GetFullPath($TempDir)
+    New-Item -ItemType Directory -Force -Path $taskTemp | Out-Null
+    $env:TEMP = $taskTemp
+    $env:TMP = $taskTemp
+}
 $taskArgs = @('+esp1')
 if ($Mirror) {
     $taskArgs += @('--config', 'source.crates-io.replace-with="rsproxy"', '--config', 'source.rsproxy.registry="sparse+https://rsproxy.cn/index/"')
 }
 $taskArgs += @('build', '--release', '--locked')
+if ($Offline) { $taskArgs += '--offline' }
 Push-Location (Join-Path $taskRoot 'core')
 try {
     & $taskCargo @taskArgs

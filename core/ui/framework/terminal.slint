@@ -1,6 +1,8 @@
+import { ConsoleTheme } from "../console-theme.slint";
 import { ScrollView } from "std-widgets.slint";
 import { FrameworkState } from "framework.slint";
 import { MyButton } from "widgets.slint";
+import { ConsoleButton } from "../console-theme.slint";
 
 // export component Terminal inherits Rectangle {
 //     scroller := ScrollView {
@@ -12,7 +14,7 @@ import { MyButton } from "widgets.slint";
 //             width: parent.width - 10px;
 //             wrap: char-wrap;
 //             vertical-alignment: bottom;
-//             font-size: 20px;
+//             font-size:20px * ConsoleTheme.text-scale;
 //             color: white;
 //             text: FrameworkState.term-text;
 //             changed text => {
@@ -46,6 +48,8 @@ import { MyButton } from "widgets.slint";
 
 
 export component Terminal inherits Rectangle {
+    callback configure;
+    clip: true;
     public function reset-scroll() {
         self.locked-offset = 0;
         self.scroll-offset-from-end = 0;
@@ -63,7 +67,7 @@ export component Terminal inherits Rectangle {
     property <bool> dummy: false;
     txt-added := Text { // for calculating dimensions of added text, must be same properties as txt
         width: root.width - 40px;
-        font-size: 20px;
+        font-size:20px * ConsoleTheme.text-scale;
         wrap: char-wrap;
         y: -200px;
         x: root.x;
@@ -74,7 +78,7 @@ export component Terminal inherits Rectangle {
 
     txt := Text {
         width: root.width - 40px;
-        font-size: 20px;
+        font-size:20px * ConsoleTheme.text-scale;
         wrap: char-wrap;
         changed text => {
             if scroll-offset-from-end != 0 {
@@ -101,7 +105,7 @@ export component Terminal inherits Rectangle {
             if scroll-offset-from-end == 0 {
                 locked-offset = offset-for-end;
             }
-            scroll-offset-from-end = scroll-offset-from-end + 22px;
+            scroll-offset-from-end = min(offset-for-end, scroll-offset-from-end + 44px);
         }
     }
 
@@ -113,7 +117,7 @@ export component Terminal inherits Rectangle {
         height: 40px;
         clicked => {
             if scroll-offset-from-end > 0px {
-                scroll-offset-from-end = scroll-offset-from-end - 22px;
+                scroll-offset-from-end = max(0px, scroll-offset-from-end - 44px);
                 
             }
         }
@@ -130,6 +134,12 @@ export component Terminal inherits Rectangle {
                 scroll-offset-from-end = 0;
             }
         }
+    }
+
+    ConsoleButton {
+        x: root.width - 148px; y: 2px; width: 100px; height: 36px;
+        text: "网络配置";
+        clicked => { root.configure(); }
     }
 
     // MyButton {
@@ -155,7 +165,7 @@ export component Terminal inherits Rectangle {
     //         height: parent.height;
     //         color: black;
     //         text: "txt.height: \{txt.height / 1px}\noffset: \{offset-for-end / 1px}\nlocked-off:\{locked-offset / 1px}\nscroll-offset:\{scroll-offset-from-end/1px}\ntxt-add:\{txt-added.height/1px}";
-    //         font-size: 20px;
+    //         font-size:20px * ConsoleTheme.text-scale;
     //     }
     // }
 }

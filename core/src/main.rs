@@ -10,6 +10,11 @@
 mod app;
 mod app_config;
 mod bambu;
+mod printer_state;
+mod filament_library;
+mod color_choices;
+mod time_sync;
+mod network_time;
 mod bambu_api;
 mod color_utils;
 mod csvdb;
@@ -24,6 +29,7 @@ mod hub_protocol;
 mod load_transition;
 mod ssdp;
 mod store;
+mod ui_text;
 mod view_model;
 mod web_app;
 mod spool_record;
@@ -78,7 +84,7 @@ use settings::{
     WEB_SERVER_CAPTIVE, WEB_SERVER_HTTPS, WEB_SERVER_PORT, WEB_SERVER_TLS_CERTIFICATE, WEB_SERVER_TLS_PRIVATE_KEY,
 };
 use web_app::{ConsoleAppState, NestedAppBuilder};
-const STA_STACK_RESOURCES: usize = WEB_SERVER_NUM_LISTENERS + 1 + MAX_NUM_PRINTERS + FRAMEWORK_STA_STACK_RESOURCES; // web-config listeners + USDP + mqtt*num-of-printers + from framework: potentially https captive +  ota + captive dns + ? initial firmware check if doen't complete
+const STA_STACK_RESOURCES: usize = WEB_SERVER_NUM_LISTENERS + 2 + MAX_NUM_PRINTERS + FRAMEWORK_STA_STACK_RESOURCES; // web-config listeners + USDP + mqtt*num-of-printers + from framework: potentially https captive +  ota + captive dns + ? initial firmware check if doen't complete
 const AP_STACK_RESOURCES: usize = WEB_SERVER_NUM_LISTENERS + FRAMEWORK_AP_STACK_RESOURCES;
 
 esp_bootloader_esp_idf::esp_app_desc!();
@@ -237,6 +243,7 @@ async fn main(spawner: Spawner) {
     };
 
     let framework = Framework::new(framework_settings, flash_map.clone(), spawner, sta_stack, tls.reference(), None);
+    spawner.spawn_heap(network_time::task(framework.clone())).ok();
 
     // == Setup Display Interface =====================================================
 

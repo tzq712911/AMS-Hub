@@ -308,13 +308,18 @@ impl AppConfig {
         &mut self,
         printers_config: PrintersConfig,
         default_printer_config: DefaultPrinterConfig,
-    ) -> Result<(), sequential_storage::Error<esp_storage::FlashStorageError>> {
+    ) -> Result<(), String> {
+        if printers_config.printers.len()>crate::settings::MAX_NUM_PRINTERS{return Err("拓竹设备最多配置 5 台".into());}
+        for (index,printer) in printers_config.printers.iter().enumerate(){
+            crate::printer_state::validate_connection(printer.serial.as_deref(),printer.access_code.as_deref())
+                .map_err(|e|format!("第 {} 台设备：{}",index+1,e))?;
+        }
         let printers_store = serde_json::to_string(&printers_config).unwrap();
-        self.framework.borrow().store(String::from(PRINTERS_CONFIG_KEY), printers_store)?;
+        self.framework.borrow().store(String::from(PRINTERS_CONFIG_KEY), printers_store).map_err(|_|String::from("保存打印机配置失败"))?;
         let default_printer_store = serde_json::to_string(&default_printer_config).unwrap();
         self.framework
             .borrow()
-            .store(String::from(DEFAULT_PRINTER_CONFIG_KEY), default_printer_store)?;
+            .store(String::from(DEFAULT_PRINTER_CONFIG_KEY), default_printer_store).map_err(|_|String::from("保存默认打印机失败"))?;
         self.configured_printers = printers_config;
         self.configured_default_printer = default_printer_config;
         Ok(())

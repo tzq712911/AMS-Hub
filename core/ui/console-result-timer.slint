@@ -1,0 +1,17 @@
+import { AppState, AppBackend, ControlState } from "app.slint";
+export component ConsoleResultTimer inherits Rectangle {
+    width:0px;height:0px;
+    Timer {
+        interval:1s;
+        running:AppState.control-state==ControlState.PostAction;
+        triggered=>{
+            AppState.post-action-remaining=max(0,AppState.post-action-remaining - 1);
+            if AppState.post-action-remaining==0 {
+                AppBackend.clear-staging();
+                AppState.empty-spool-staging();
+                AppState.stop-highlight-tray();
+                AppState.control-state=ControlState.Ready;
+            }
+        }
+    }
+}

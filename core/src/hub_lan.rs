@@ -91,7 +91,7 @@ pub async fn u1_write(stack: Stack<'static>, config: &Config, requested: &Slot) 
 
 struct Credentials { model: String, device: String, username: String, password: String, cert: String, key: String }
 fn s<'a>(value: &'a Value, key: &str) -> Result<&'a str> { value[key].as_str().ok_or("Anycubic 认证数据不完整") }
-fn epoch_ms() -> Result<u64> { crate::store::store_safe_time_now().filter(|t|*t>0).map(|t|t as u64*1000).ok_or("等待网络时间同步后重试") }
+fn epoch_ms() -> Result<u64> { crate::network_time::now_ms().ok_or("正在校时；可登录配置网页同步电脑时间后重试") }
 
 async fn ac_auth(stack: Stack<'static>, config: &Config) -> Result<Credentials> {
     let info=http(stack,config,18910,"GET","/info","").await?;
@@ -157,7 +157,16 @@ async fn ac_inner(framework: Rc<RefCell<Framework>>, config:&Config, requested:O
         private_key:Some(esp_mbedtls::X509::pem(key.as_bytes_with_nul()).map_err(|_|"客户端密钥无效")?),
         ca_chain:if config.ca_pem.is_empty(){None}else{Some(esp_mbedtls::X509::pem(ca.as_bytes_with_nul()).map_err(|_|"CA 证书无效")?)},password:None };
     let mut session=esp_mbedtls::asynch::Session::new(socket,esp_mbedtls::Mode::Client{servername:name.as_c_str()},esp_mbedtls::TlsVersion::Tls1_2,certificates,tls).map_err(|_|"TLS 初始化失败")?;
-    session.connect().await.map_err(|_|"Anycubic TLS 认证失败")?;
+    session.set_max_version(esp_mbedtls::TlsVersion::Tls1_2).map_err(|_|"TLS 1.2 配置失败")?;
+    session.connect().await.map_err(|error|{
+        warn!("Anycubic TLS handshake failed: {:?}",error);
+        match error{
+            esp_mbedtls::TlsError::MbedTlsError(-9984)=>"TLS 证书验证失败：请检查 CA、证书用途与 TLS 名称",
+            esp_mbedtls::TlsError::MbedTlsError(-30592)=>"TLS 被打印机拒绝：请刷新本地客户端凭据并检查局域网控制模式",
+            esp_mbedtls::TlsError::OutOfMemory=>"TLS 内存不足，请重启终端后重试",
+            _=>"Anycubic TLS 握手失败，请查看终端连接日志中的错误码",
+        }
+    })?;
     let mut mqtt=MyMqtt::new(session,TIMEOUT);
     mqtt.connect(60,Some(&auth.username),Some(auth.password.as_bytes())).await.map_err(|_|"MQTT 登录失败")?;
     let report=p::ac_topic(&auth.model,&auth.device,true)?;

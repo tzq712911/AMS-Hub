@@ -19,6 +19,8 @@ import { ConsoleSettings } from "console-settings.slint";
 import { HubPage, HubUi, HubSlot } from "hub.slint";
 export { HubUi, HubSlot }
 import "fonts/ConsoleSans.ttf";
+import { RuntimeGlyphs } from "runtime-glyphs.slint";
+import { ConsoleResultTimer } from "console-result-timer.slint";
 
 // reexport to rust
 
@@ -26,11 +28,13 @@ export { FrameworkState, FrameworkBackend }
 export { AppState, AppBackend }
 
 export component AppWindow inherits Window {
+    out property <string> runtime-font-coverage: RuntimeGlyphs.characters;
     default-font-family: "Console Sans";
     background: ConsoleTheme.background;
     width: 480px;
     height: 320px;
-    if HubUi.visible && AppState.control-state != ControlState.NewTagScan: HubPage { width:480px; height:320px; z:100; }
+    ConsoleResultTimer {}
+    if HubUi.visible && AppState.control-state != ControlState.NewTagScan: HubPage { visible:!HubUi.editing&&!HubUi.settings-open; width:480px; height:320px; z:100; }
     if HubUi.settings-open: ConsoleSettings {width:480px;height:320px;z:101;back=>{HubUi.settings-open=false;}}
     if HubUi.editing: ConsoleEditor {width:480px;height:320px;z:102;}
 
@@ -63,6 +67,7 @@ export component AppWindow inherits Window {
     }
 
     sgr := SwipeGestureHandler {
+        visible:!HubUi.visible&&!HubUi.settings-open&&!HubUi.editing&&AppState.control-state!=ControlState.TraySelected&&AppState.control-state!=ControlState.NewTagScan;
         width: parent.width;
         height: parent.height;
         handle-swipe-up: current-page < 2 && (!AppState.select-printer);
@@ -91,16 +96,17 @@ export component AppWindow inherits Window {
             x: - current-page_x * 480px;
             y: - current-page * 320px;
             animate y {
-                duration: 1000ms;
+                duration: 160ms;
                 easing: ease-in-out;
             }
             animate x {
-                duration: 1000ms;
+                duration: 160ms;
                 easing: ease-in-out;
             }
 
             // Page 0 - Terminal
             terminal := Terminal {
+                configure => { root.current-page = 2; }
                 text: FrameworkState.term-text;
                 height: root.height;
                 width: root.width;
@@ -168,3 +174,5 @@ export component AppWindow inherits Window {
         }
     }
 }
+
+export { ConsoleTheme }

@@ -464,7 +464,7 @@ impl BambuPrinter {
         printer: &Rc<RefCell<BambuPrinter>>,
         store: &Rc<Store>,
     ) -> Result<(), String> {
-        let path = Self::printer_state_file_path(&printer.borrow().printer_serial);
+        let path = Self::printer_state_file_path(&printer.borrow().printer_serial)?;
         let printer_number = printer.borrow().printer_number;
         loop {
             if store.is_initialized() {
@@ -486,8 +486,21 @@ impl BambuPrinter {
                         err_str = format!("[{printer_number}] Loaded empty state file {path} in trial {trial}");
                         term_error!("{err_str}"); // will retry after timeout below
                     } else {
-                        match serde_json::from_str::<PrinterPersistentState>(&state_str) {
-                            Ok(printer_state) => {
+                        let serial = printer.borrow().printer_serial.clone();
+                        match crate::printer_state::decode::<PrinterPersistentState>(&state_str, &serial) {
+                            Ok((printer_state, wrapped)) => {
+                                if wrapped {
+                                    // Preserve the complete envelope, including generic metadata,
+                                    // before periodic persistence can replace it with our format.
+                                    let backup = path.replace("startup.jsn", "startup.v1");
+                                    if !file_store.file_exists(&backup).await.map_err(|e| format!("State backup check failed: {e}"))? {
+                                        file_store.create_write_file_str(&backup, &state_str).await.map_err(|e| format!("State backup failed: {e}"))?;
+                                    }
+                                    if file_store.read_file_str(&backup).await.map_err(|e| format!("State backup verification failed: {e}"))? != state_str {
+                                        return Err("原状态备份与当前文件不同，未导入旧状态".into());
+                                    }
+                                    term_info!("[{}] 已备份并兼容读取版本 1 的打印机状态", printer_number);
+                                }
                                 printer.borrow_mut().init_printer_persistent_state(printer_state, store);
                                 term_info!("[{}] Restored printer state from SDCard", printer_number);
                                 return Ok(());
@@ -495,7 +508,6 @@ impl BambuPrinter {
                             Err(err) => {
                                 err_str = format!("[{printer_number}] Failed to Parse Printer State File (Check Terminal for More Info)");
                                 term_error!("[{}] Failed to parse printer state in file {} : {}", printer_number, path, err);
-                                error!("[{printer_number} Printer state state file content: {state_str}]");
                                 return Err(err_str);
                             }
                         }
@@ -568,7 +580,7 @@ impl BambuPrinter {
         }
         if let (Some(printer_state_str), Some(printer_serial)) = (printer_state_str, printer_serial) {
             let file_store = framework.borrow().file_store();
-            let path = Self::printer_state_file_path(&printer_serial);
+            let path = Self::printer_state_file_path(&printer_serial)?;
             info!("[{}] Storing printer state to {}", printer.borrow().printer_number, path);
             // need to clean dirty before we store since it awaits,
             // but store might fail, and in that case we need to bring back dirty (add the dirty we had)
@@ -664,17 +676,11 @@ impl BambuPrinter {
         }
     }
 
-    pub fn printer_state_file_path(printer_serial: &str) -> String {
-        let len = printer_serial.len();
-        let file_ext = &printer_serial[len - 3..];
-        let file_name = &printer_serial[len - 11..len - 3];
-        format!("/state/{file_name}.{file_ext}/startup.jsn")
+    pub fn printer_state_file_path(printer_serial: &str) -> Result<String,String> {
+        crate::printer_state::file_path(printer_serial,"startup.jsn")
     }
-    pub fn printer_state_path_for_file(&self, file: &str) -> String {
-        let len = self.printer_serial.len();
-        let file_ext = &self.printer_serial[len - 3..];
-        let file_name = &self.printer_serial[len - 11..len - 3];
-        format!("/state/{file_name}.{file_ext}/{file}")
+    pub fn printer_state_path_for_file(&self, file: &str) -> Result<String,String> {
+        crate::printer_state::file_path(&self.printer_serial,file)
     }
 }
 
@@ -817,6 +823,7 @@ impl BambuPrinter {
             "030" => PrinterModel::A1Mini,
             "22E" => PrinterModel::P2S,
             "31B" => PrinterModel::H2C,
+            "20P" => PrinterModel::X2D,
             _ => PrinterModel::Unknown,
         }
     }
@@ -836,6 +843,7 @@ impl BambuPrinter {
             PrinterModel::H2DPro => PrinterModelSeries::H2,
             PrinterModel::_H2S => PrinterModelSeries::H2,
             PrinterModel::H2C => PrinterModelSeries::H2,
+            PrinterModel::X2D => PrinterModelSeries::X2,
         }
     }
 
@@ -1990,6 +1998,16 @@ impl BambuPrinter {
     }
 
     pub fn set_tray_filament(&mut self, tray_id: i32, full_spool_rec: &FullSpoolRecord, temp_min: u32, temp_max: u32) {
+        let library:crate::filament_library::Library=self.app_config.borrow().framework.borrow().fetch(crate::filament_library::KEY.into()).ok().flatten().and_then(|s|serde_json::from_str(&s).ok()).unwrap_or_default();
+        let Some((code,mapped_setting))=library.bambu_identity(&full_spool_rec.spool_rec.slicer_filament,&full_spool_rec.spool_rec.brand,&full_spool_rec.spool_rec.material_subtype,&full_spool_rec.spool_rec.material_type) else{return;};
+        let mut projected=full_spool_rec.clone();
+        if code!=projected.spool_rec.slicer_filament {projected.spool_rec_ext.k_info=None;projected.spool_rec.ext_has_k=false;}
+        projected.spool_rec.slicer_filament=code;
+        let (temp_min,temp_max)=library.entries.iter().find(|e|e.bambu_code==projected.spool_rec.slicer_filament&&e.material==projected.spool_rec.material_type)
+            .map(|e|(e.temp_min as u32,e.temp_max as u32))
+            .or_else(||crate::filament_library::generic(&projected.spool_rec.material_type).filter(|g|g.code==projected.spool_rec.slicer_filament).map(|g|(g.temp_min as u32,g.temp_max as u32)))
+            .unwrap_or((temp_min,temp_max));
+        let full_spool_rec=&projected;
         let (ams_id_for_set_filament, ams_tray_id, slot_id, original_tray_id) = self.get_quad_for_set_filament_from_tray_id(tray_id);
 
         // setting_id can't be extracted from just tray information, it's available only if there is a cali_idx on the tray.
@@ -2000,7 +2018,7 @@ impl BambuPrinter {
         let extruder_id = self.get_extruder_id_for_tray(tray_id).unwrap_or_default();
         let matching_calibration = self.get_matching_printer_calibration_for_extruder(full_spool_rec, extruder_id);
 
-        let setting_id: Option<&str> = matching_calibration.as_ref().and_then(|c| c.setting_id.as_deref());
+        let setting_id: Option<&str> = matching_calibration.as_ref().and_then(|c| c.setting_id.as_deref()).or_else(||if mapped_setting.is_empty(){None}else{Some(mapped_setting.as_str())});
 
         let mut filament = FilamentInfo {
             tray_info_idx: full_spool_rec.spool_rec.slicer_filament.clone(),
@@ -2058,7 +2076,7 @@ impl BambuPrinter {
 
     /// Manual metadata edit. It does not move filament or heat a nozzle.
     /// Ok means queued locally, not that the firmware has accepted the request.
-    pub fn configure_console_slot(&mut self, tray_id: i32, filament: FilamentInfo, cali_idx: i32) -> Result<(), String> {
+    pub fn configure_console_slot(&mut self, tray_id: i32, filament: FilamentInfo, cali_idx: i32, setting_override:Option<&str>) -> Result<(), String> {
         if self.printer_connectivity_ok != Some(true) { return Err("打印机未连接".into()); }
         if self.is_locked() { return Err("机器拒绝第三方写入，请开启开发者模式".into()); }
         crate::console_validation::validate_metadata(tray_id, &filament.tray_color,
@@ -2076,7 +2094,7 @@ impl BambuPrinter {
         let (ams, local_tray, slot, global_tray) = self.get_quad_for_set_filament_from_tray_id(tray_id);
         let settings = crate::bambu_api::AmsFilamentSettingCommand::new(
             ams, local_tray, slot, &filament.tray_info_idx,
-            calibration.and_then(|c| c.setting_id.as_deref()), &filament.tray_type,
+            calibration.and_then(|c| c.setting_id.as_deref()).or(setting_override), &filament.tray_type,
             &filament.tray_color, filament.nozzle_temp_min, filament.nozzle_temp_max,
         );
         let selection = crate::bambu_api::ExtrusionCaliSelCommand::new(
@@ -2677,6 +2695,8 @@ pub fn init(
     ssdp_pub_sub: &'static SSDPPubSubChannel,
     store_state_request_channel: Rc<StoreStateRequestChannel>,
 ) -> Result<Rc<RefCell<BambuPrinter>>, String> {
+    crate::printer_state::validate_connection(printer_config.serial.as_deref(),printer_config.access_code.as_deref())
+        .map_err(|message|format!("{}；请在网页配置中修正此设备",message))?;
     let spawner = framework.borrow().spawner;
     let printer_serial = if let Some(printer_serial) = &printer_config.serial {
         printer_serial.clone()
@@ -3446,10 +3466,12 @@ pub enum PrinterModel {
     H2D,
     H2DPro,
     H2C,
+    X2D,
     _H2S,
 }
 
 pub enum PrinterModelSeries {
+    X2,
     Unknown,
     X1,
     P1,

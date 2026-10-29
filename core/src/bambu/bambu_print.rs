@@ -608,8 +608,8 @@ impl BambuPrinter {
         printer: &Rc<RefCell<BambuPrinter>>,
     ) -> Result<bool, String> {
         let printer_log_id = printer.borrow().printer_number;
-        let print_project_path = printer.borrow().printer_state_path_for_file("print.jsn");
-        let filament_usage_path = printer.borrow().printer_state_path_for_file("print.csv");
+        let print_project_path = printer.borrow().printer_state_path_for_file("print.jsn")?;
+        let filament_usage_path = printer.borrow().printer_state_path_for_file("print.csv")?;
         let file_store = framework.borrow().file_store();
         let mut file_store = file_store.lock().await;
         let filament_usage = match file_store.read_file_str(&filament_usage_path).await {
@@ -647,7 +647,7 @@ impl BambuPrinter {
             let mut at_least_one_loaded = false;
             let mut at_least_one_parsed = false;
             for i in 0..=1 {
-                let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{i}"));
+                let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{i}"))?;
                 info!("Trying to read file {consume_index_path}");
                 #[allow(clippy::single_match)]
                 match file_store.read_file_str(&consume_index_path).await {
@@ -727,9 +727,9 @@ impl BambuPrinter {
         };
         let file_store = framework.borrow().file_store();
         let mut file_store = file_store.lock().await;
-        let print_project_path = printer.borrow().printer_state_path_for_file("print.jsn");
-        let filament_usage_path = printer.borrow().printer_state_path_for_file("print.csv");
-        let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{}", consume_store_counter % 2));
+        let print_project_path = printer.borrow().printer_state_path_for_file("print.jsn")?;
+        let filament_usage_path = printer.borrow().printer_state_path_for_file("print.csv")?;
+        let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{}", consume_store_counter % 2))?;
         if let Err(err) =  file_store.create_write_file_str(&print_project_path, &curr_print_project_str).await {
             let err_str = format!("[{printer_log_id}] Error Writing Print Project File"); 
             error!("{err_str} : {err:?}");
@@ -768,7 +768,7 @@ impl BambuPrinter {
             return Ok(());
         };
 
-        let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{}", consume_store_counter%2));
+        let consume_index_path = printer.borrow().printer_state_path_for_file(&format!("print.ci{}", consume_store_counter%2))?;
         let file_store = framework.borrow().file_store();
         let mut file_store = file_store.lock().await;
         if let Err(err) = file_store.create_write_file_str(&consume_index_path, &consume_index_state_str).await {
@@ -784,10 +784,10 @@ impl BambuPrinter {
         printer: &Rc<RefCell<BambuPrinter>>,
     ) {
         info!("[{}] Erasing stored print project resume state (if exists)", printer.borrow().printer_number);
-        let print_project_path = printer.borrow().printer_state_path_for_file("print.jsn");
-        let filament_usage_path = printer.borrow().printer_state_path_for_file("print.csv");
-        let consume_index_path0 = printer.borrow().printer_state_path_for_file("print.ci0");
-        let consume_index_path1 = printer.borrow().printer_state_path_for_file("print.ci1");
+        let Ok(print_project_path) = printer.borrow().printer_state_path_for_file("print.jsn") else { return; };
+        let Ok(filament_usage_path) = printer.borrow().printer_state_path_for_file("print.csv") else { return; };
+        let Ok(consume_index_path0) = printer.borrow().printer_state_path_for_file("print.ci0") else { return; };
+        let Ok(consume_index_path1) = printer.borrow().printer_state_path_for_file("print.ci1") else { return; };
         let file_store = framework.borrow().file_store();
         let mut file_store = file_store.lock().await;
         let _ = file_store.delete_file(&consume_index_path0).await;

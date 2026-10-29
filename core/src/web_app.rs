@@ -89,6 +89,10 @@ impl AppWithStateBuilder for NestedAppBuilder {
         );
 
 //        TODO: >>>>>> Move to framework with setting for the css
+        let router=router.route("/config-app.js",get_service(picoserve::response::File::with_content_type_and_headers("application/javascript",include_bytes_gz!("static/config-app.js"),&[("Content-Encoding","gzip")])));
+        let router=router.route("/filament-library.js",get_service(picoserve::response::File::with_content_type_and_headers(
+            "application/javascript",include_bytes_gz!("static/filament-library.js"),&[("Content-Encoding","gzip")]
+        )));
         let router = router.route(
             "/styles.css",
             get_service(picoserve::response::File::with_content_type_and_headers(
@@ -148,6 +152,50 @@ impl AppWithStateBuilder for NestedAppBuilder {
         ).get(move |State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>| {
             let config=state.0.view_model.borrow().hub_config.borrow().clone();
             ready(HubConfigDTO{config}.encrypt(&key.borrow()))
+        }));
+        let router=router.route("/api/hub-devices",get(move|State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>|{
+            let list=crate::hub::all_devices(&state.0.app_config.borrow().framework.borrow());ready(HubDevicesDTO{devices:list}.encrypt(&key.borrow()))
+        }));
+        let router=router.route("/api/hub-device-delete",post(move|State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>,dto:HubDeleteDTO|{
+            let vm=state.0.view_model.borrow();let result=crate::hub::delete_config(&state.0.app_config.borrow().framework.borrow(),&vm.hub_config,&dto.id);
+            ready(SetConfigResponseDTO{error_text:result.err().map(ToString::to_string)}.encrypt(&key.borrow()))
+        }));
+        let router=router.route("/api/hub-test",post(move|State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>,dto:HubConfigDTO|async move{
+            let encryption=key.borrow().clone();let f=state.0.app_config.borrow().framework.clone();
+            let result=crate::hub::test_connection(f,&dto.config).await;
+            HubTestDTO{slots:result.as_ref().ok().copied(),error_text:result.err().map(ToString::to_string)}.encrypt(&encryption)
+        }));
+        let router=router.route("/api/ui-glyphs",get(move|State(Encryption(key)):State<Encryption>|{
+            ready(UiGlyphsDTO{characters:crate::ui_text::COVERAGE}.encrypt(&key.borrow()))
+        }));
+        let router=router.route("/api/rfid-bindings",get(move|State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>,picoserve::extract::Query(query):picoserve::extract::Query<BindingsQuery>|{
+            let mut out=BindingsDTO{bindings:Vec::new(),total:0,next_offset:None,error_text:None};
+            if let Some(db)=state.0.store.spools_db.get(){
+                let records=db.records.borrow();
+                let mut rows:Vec<_>=records.values().filter(|r|r.data.has_valid_tag_id()).map(|r|&r.data).collect();rows.sort_by(|a,b|a.id.cmp(&b.id));
+                out.total=rows.len();let end=query.offset.saturating_add(50).min(rows.len());
+                if query.offset<rows.len(){out.bindings=rows[query.offset..end].iter().map(|r|RfidBindingDTO{id:r.id.clone(),tag_id:r.tag_id.clone(),brand:r.brand.clone(),name:r.material_subtype.clone(),material:r.material_type.clone(),color:r.color_code.clone(),preset_code:r.slicer_filament.clone()}).collect();}
+                if end<rows.len(){out.next_offset=Some(end);}
+            }else{out.error_text=Some("RFID 库存尚未就绪，请稍后刷新".into());}
+            ready(out.encrypt(&key.borrow()))
+        }));
+        let router=router.route("/api/filament-library",post(
+            move |State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>,dto:LibraryDTO| {
+                let result=crate::filament_library::validate(&dto.library).and_then(|_|{
+                    let json=serde_json::to_string(&dto.library).map_err(|_|"目录编码失败")?;
+                    if json.len()>49152{return Err("目录过大，请分批导入");}
+                    state.0.app_config.borrow().framework.borrow().store(crate::filament_library::KEY.into(),json).map_err(|_|"保存私有目录失败")
+                });
+                if result.is_ok(){crate::filament_library::invalidate();}
+                ready(SetConfigResponseDTO{error_text:result.err().map(ToString::to_string)}.encrypt(&key.borrow()))
+            }
+        ).get(move |State(Encryption(key)):State<Encryption>,state:State<ConsoleAppState>|{
+            let library=state.0.app_config.borrow().framework.borrow().fetch(crate::filament_library::KEY.into()).ok().flatten().and_then(|s|serde_json::from_str(&s).ok()).unwrap_or_default();
+            ready(LibraryDTO{library}.encrypt(&key.borrow()))
+        }));
+
+        let router=router.route("/api/time-sync",post(move|State(Encryption(key)):State<Encryption>,dto:TimeSyncDTO|{
+            ready(SetConfigResponseDTO{error_text:crate::network_time::accept(dto.unix_ms).err().map(String::from)}.encrypt(&key.borrow()))
         }));
 
         let router = router.route(
@@ -523,6 +571,25 @@ encrypted_input!(ScaleConfigDTO);
 #[derive(serde::Deserialize, serde::Serialize)]
 struct HubConfigDTO { config:crate::hub_protocol::Config }
 encrypted_input!(HubConfigDTO);
+#[derive(Serialize)]
+struct UiGlyphsDTO{characters:&'static str}
+#[derive(Deserialize,Default)]
+#[serde(default)]
+struct BindingsQuery{offset:usize}
+#[derive(Serialize)]
+struct RfidBindingDTO{id:String,tag_id:String,brand:String,name:String,material:String,color:String,preset_code:String}
+#[derive(Serialize)]
+struct BindingsDTO{bindings:Vec<RfidBindingDTO>,total:usize,next_offset:Option<usize>,error_text:Option<String>}
+#[derive(Serialize)]
+struct HubDevicesDTO{devices:Vec<crate::hub_protocol::Config>}
+#[derive(Deserialize)]
+struct HubDeleteDTO{id:String}
+encrypted_input!(HubDeleteDTO);
+#[derive(Serialize)]
+struct HubTestDTO{slots:Option<usize>,error_text:Option<String>}
+#[derive(Serialize,Deserialize)]
+struct LibraryDTO { library:crate::filament_library::Library }
+encrypted_input!(LibraryDTO);
 
 impl From<ScaleConfigDTO> for ScaleConfig {
     fn from(v: ScaleConfigDTO) -> Self {
@@ -678,3 +745,7 @@ impl picoserve::response::Content for HtmlStringResponse {
         self.html.as_bytes().write_content(writer).await
     }
 }
+
+#[derive(Deserialize)]
+struct TimeSyncDTO{unix_ms:u64}
+encrypted_input!(TimeSyncDTO);

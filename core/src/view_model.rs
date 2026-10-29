@@ -74,6 +74,8 @@ struct PrinterUiState {
     curr_ams: Option<i32>,
 }
 pub struct ViewModel {
+    library_cache: RefCell<Option<(u32, crate::filament_library::Library)>>,
+    presets_cache: RefCell<Option<(u32, String, slint::ModelRc<crate::app::UiConsolePreset>)>>,
     pub hub_config: Rc<RefCell<crate::hub_protocol::Config>>,
     // Framework
     stack: Stack<'static>,
@@ -163,6 +165,8 @@ impl ViewModel {
 
         // Create the ViewModel
         let view_model = ViewModel {
+            library_cache: RefCell::new(None),
+            presets_cache: RefCell::new(None),
             hub_config: crate::hub::init(framework.clone(), ui_weak.clone()),
             // Framework
             stack,
@@ -703,6 +707,12 @@ impl ViewModel {
     }
 
     fn get_filament_info(&self, search_code: &str, material: Option<&str>) -> Option<FilamentSupInfo> {
+        if let Some(e)=self.private_library().entries.into_iter().find(|e|e.code==search_code && material.map_or(true,|m|m==e.material)) {
+            return Some(FilamentSupInfo{origin_is_material:false,base_filament:false,slicer_name:e.name,slicer_code:e.code,nozzle_temp_low:e.temp_min,nozzle_temp_high:e.temp_max});
+        }
+        if let Some(g)=material.and_then(crate::filament_library::generic).filter(|g|g.code==search_code) {
+            return Some(FilamentSupInfo{origin_is_material:true,base_filament:true,slicer_name:g.name,slicer_code:g.code,nozzle_temp_low:g.temp_min,nozzle_temp_high:g.temp_max});
+        }
         let app_config_borrow = self.app_config.borrow();
         let empty_list = String::new();
         let filament_lists = [BASE_FILAMENTS, app_config_borrow.custom_filaments.as_ref().unwrap_or(&empty_list)];
@@ -809,11 +819,20 @@ impl ViewModel {
             if let Some(filament_info) =
                 self.get_filament_info(&full_spool_rec.spool_rec.slicer_filament, Some(&full_spool_rec.spool_rec.material_type))
             {
+                let library=self.private_library();
+                let mut projected=full_spool_rec.clone();
+                if let Some((code,_))=library.bambu_identity_color(&projected.spool_rec.slicer_filament,&projected.spool_rec.brand,&projected.spool_rec.material_subtype,&projected.spool_rec.material_type,&projected.spool_rec.color_code) {
+                    if code!=projected.spool_rec.slicer_filament {projected.spool_rec_ext.k_info=None;projected.spool_rec.ext_has_k=false;}
+                    projected.spool_rec.slicer_filament=code;
+                } else {return;}
+                // Resolve only the wire copy; the RFID record in Store stays intact.
+                let wire_info=self.get_filament_info(&projected.spool_rec.slicer_filament,Some(&projected.spool_rec.material_type)).unwrap_or(filament_info);
+                let _=self.framework.borrow().store(format!("bc_{}_{}",bambu_printer.printer_serial,tray_id),serde_json::to_string(&full_spool_rec.spool_rec).unwrap());
                 bambu_printer.set_tray_filament(
                     tray_id,
-                    full_spool_rec,
-                    filament_info.nozzle_temp_low as u32,
-                    filament_info.nozzle_temp_high as u32,
+                    &projected,
+                    wire_info.nozzle_temp_low as u32,
+                    wire_info.nozzle_temp_high as u32,
                 );
                 filament_staging.clear();
                 ui.unwrap().global::<crate::app::AppState>().invoke_empty_spool_staging();
@@ -892,33 +911,61 @@ impl ViewModel {
                 }
             });
 
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_console_text(|text|crate::ui_text::display(&text).into());
         let vm = self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>()
             .on_get_console_presets(move || vm.borrow().console_presets());
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_materials(||slint::ModelRc::new(slint::VecModel::from(crate::filament_library::types().into_iter().map(Into::into).collect::<Vec<SharedString>>())));
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_generic(|material|{
+            crate::filament_library::generic(&material).map(|e|crate::app::UiConsolePreset{brand:e.brand.into(),code:e.code.into(),name:e.name.into(),material:e.material.into(),temp_min:e.temp_min,temp_max:e.temp_max}).unwrap_or_default()
+        });
+        let vm=self.view_model.as_ref().unwrap().clone();let weak=self.ui_weak.clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_mapping(move|code,material,brand,series,color|{
+            let model=vm.borrow();let library=model.private_library();
+            let target=weak.unwrap().global::<crate::app::HubUi>().get_active_brand();
+            if target==2{return format!("机器：Anycubic {} · 仅类型与 RGB",material).into();}
+            if target==1 {
+                let projected=library.u1(&crate::hub_protocol::Filament{vendor:brand.to_string(),subtype:series.to_string(),material:material.to_string(),rgba:color.to_string()});
+                return format!("机器：{} {} {}",projected.vendor,projected.subtype,material).into();
+            }
+            library.bambu_identity_color(&code,&brand,&series,&material,&color).map(|(wire,_)|{
+                let name=library.entries.iter().find(|e|e.bambu_code==wire && e.material==material.as_str()).map(|e|format!("{} {}",e.brand,e.name))
+                    .or_else(||model.get_filament_info(&wire,Some(&material)).map(|e|e.slicer_name)).unwrap_or_else(||material.to_string());
+                format!("机器：{}",name).into()
+            }).unwrap_or_else(||"尚无可用的同类型机器映射".into())
+        });
         let vm=self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_presets_for_brand(move|brand|{
             let all=vm.borrow().console_presets();
-            slint::ModelRc::new(slint::VecModel::from(all.iter().filter(|p|p.brand.as_str().eq_ignore_ascii_case(&brand)).collect::<Vec<_>>()))
+            let mut rows:Vec<crate::app::UiConsolePreset>=Vec::new();
+            for p in all.iter().filter(|p|p.brand.as_str().eq_ignore_ascii_case(&brand)){
+                if !rows.iter().any(|r|r.brand==p.brand&&r.name==p.name&&r.material==p.material){rows.push(p);}
+            }
+            slint::ModelRc::new(slint::VecModel::from(rows))
         });
         let vm=self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brand(move|code|{
             vm.borrow().console_presets().iter().find(|p|p.code==code).map(|p|p.brand).unwrap_or_else(||"Generic".into())
         });
-        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_colors(|code|{
-            let mut rows=Vec::new();
-            for line in crate::app_config::BAMBU_COLOR_NAMES.lines(){
-                let f:Vec<_>=line.split(',').collect();if f.len()<3||f[0]!=code.as_str(){continue;}
-                if let Ok(rgb)=u32::from_str_radix(&f[1][..6],16){rows.push(crate::app::UiConsoleColor{name:f[2].into(),code:f[1].into(),tint:slint::Color::from_argb_encoded(0xff000000|rgb)});}
-            }
-            if rows.is_empty(){for (name,color) in [("White","FFFFFFFF"),("Black","000000FF"),("Red","F01B23FF"),("Blue","287FC2FF"),("Green","00CE9BFF"),("Cyan","71CCE1FF"),("Yellow","F5D14BFF"),("Orange","FF8B3DFF"),("Purple","A083CCFF"),("Gray","969696FF"),("Pink","E383BAFF"),("Brown","805838FF")]{rows.push(crate::app::UiConsoleColor{name:name.into(),code:color.into(),tint:slint::Color::from_argb_encoded(0xff000000|u32::from_str_radix(&color[..6],16).unwrap())});}}
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_colors(move|code|{
+            let library=vm.borrow().private_library();
+            let selected=library.entries.iter().find(|e|e.code==code.as_str());
+            let preferred=library.entries.iter().filter(|e|selected.is_some_and(|p|p.brand==e.brand&&p.name==e.name&&p.material==e.material))
+                .map(|e|(e.color_name.clone(),e.color.clone())).collect::<Vec<_>>();
+            let rows=crate::color_choices::choices(preferred,&code).into_iter().map(|(name,color)|{
+                let rgb=u32::from_str_radix(&color[..6],16).unwrap();
+                crate::app::UiConsoleColor{name:name.into(),code:color.into(),tint:slint::Color::from_argb_encoded(0xff000000|rgb)}
+            }).collect::<Vec<_>>();
             slint::ModelRc::new(slint::VecModel::from(rows))
         });
         self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_parse_console_color(|code|{
             slint::Color::from_argb_encoded(0xff000000|code.get(..6).and_then(|s|u32::from_str_radix(s,16).ok()).unwrap_or(0x555555))
         });
-        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brands(|| {
-            let mut names:Vec<SharedString>=alloc::vec!["Bambu Lab".into(),"Generic".into()];
-            names.extend(FILAMENT_BRAND_NAMES.lines().filter(|s|!s.starts_with('#')&&!s.trim().is_empty()).map(|s|s.split(',').next().unwrap().trim().into()));
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_get_console_brands(move|| {
+            let mut names:Vec<SharedString>=["Bambu Lab","Generic","鑫博川","eSUN","Polymaker","SUNLU","Kexcelled","Creality","Overture","Anycubic","Snapmaker"].iter().map(|s|(*s).into()).collect();
+            names.extend(vm.borrow().private_library().entries.iter().map(|e|e.brand.clone().into()));
             let mut unique:Vec<SharedString>=Vec::new();
             for n in names{let n=if n=="Bambu"{"Bambu Lab".into()}else{n};if !unique.contains(&n){unique.push(n);}}
             slint::ModelRc::new(slint::VecModel::from(unique))
@@ -933,11 +980,37 @@ impl ViewModel {
             });
         let vm=self.view_model.as_ref().unwrap().clone();
         self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_configure_console_profile(move|tray,preset,material,color,calibration,brand,series|{
-            let model=vm.borrow();let error=model.configure_console_slot(tray,&preset,&material,&color,calibration);
+            let model=vm.borrow();let library=model.private_library();
+            let selected=library.entries.iter().find(|e|e.code==preset.as_str()&&e.material==material.as_str())
+                .or_else(||library.entries.iter().find(|e|e.brand==brand.as_str()&&e.name==series.as_str()&&e.material==material.as_str()));
+            let error=model.configure_console_slot(tray,selected.map(|e|e.code.as_str()).unwrap_or(&preset),&material,&color,calibration);
             if !error.is_empty(){return error;}
             let profile=SpoolRecord{brand:brand.to_string(),slicer_filament:preset.to_string(),material_type:material.to_string(),material_subtype:series.to_string(),color_code:color.to_ascii_uppercase(),..Default::default()};
             let serial=model.bambu_printer_model.borrow().printer_serial.clone();
             if model.framework.borrow().store(format!("bc_{}_{}",serial,tray),serde_json::to_string(&profile).unwrap()).is_err(){return "机器命令已发送，但本地实际资料保存失败".into();}
+            SharedString::new()
+        });
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_reassign_scanned_tag(move||{
+            let model=vm.borrow();let w=model.ui_weak.unwrap();let state=w.global::<crate::app::AppState>();
+            let display=state.get_spool_staging_info();let tag=display.spool_record.tag_id.clone();
+            if tag.is_empty()||model.store.get_spool_by_hex_tag(&tag).is_none(){return "请先扫描已绑定的 RFID".into();}
+            model.filament_staging.borrow_mut().clear();state.invoke_empty_spool_staging();
+            state.invoke_new_tag_scanned(tag);state.set_reassign_info(display);state.set_reassigning_tag(true);
+            w.global::<crate::app::HubUi>().set_editing(false);SharedString::new()
+        });
+        let vm=self.view_model.as_ref().unwrap().clone();
+        self.ui_weak.unwrap().global::<crate::app::AppBackend>().on_clear_console_slot(move|tray|{
+            let model=vm.borrow();if model.bambu_printer_model.printers.is_empty(){return "打印机未连接".into();}
+            let mut printer=model.bambu_printer_model.borrow_mut();
+            if printer.printer_connectivity_ok!=Some(true){return "打印机未连接".into();}
+            if printer.is_locked(){return "机器已锁定，不能清空槽位".into();}
+            if printer.get_extruder_for_tray(tray).is_err(){return "槽位无效".into();}
+            let key=format!("bc_{}_{}",printer.printer_serial,tray);
+            if model.framework.borrow().remove(key).is_err(){return "清除本地资料失败，未发送命令".into();}
+            printer.reset_tray(tray);printer.update_any_tray(tray as usize,|t|{t.meta_info.spool_id=None;});
+            drop(printer);let state=model.ui_weak.unwrap();let state=state.global::<crate::app::AppState>();
+            state.set_user_message("已发送清空命令，等待机器读回".into());state.set_control_state(crate::app::ControlState::PostAction);
             SharedString::new()
         });
         let vm = self.view_model.as_ref().unwrap().clone();
@@ -957,29 +1030,52 @@ impl ViewModel {
             return "标签编号无效，请重新扫描".into();
         }
         let tag = tag.to_ascii_uppercase();
-        if self.store.get_spool_by_hex_tag(&tag).is_some() { return "标签已绑定，请返回并重新扫描".into(); }
+        let existing=self.store.get_spool_by_hex_tag(&tag);
+        let state=self.ui_weak.unwrap();let state=state.global::<crate::app::AppState>();
+        if existing.is_some() && !(state.get_reassigning_tag()&&state.get_control_state()==crate::app::ControlState::NewTagScan&&state.get_new_tag_scan_tag_id().as_str()==tag) {return "标签已绑定，请先选择重设 RFID".into();}
+        let expected_id=existing.as_ref().map(|r|r.id.clone());
         let Some(info) = self.get_filament_info(preset, Some(material)) else { return "请选择耗材配置".into(); };
         if let Err(error) = crate::console_validation::validate_metadata(0, color, &info.slicer_code,
             material, info.nozzle_temp_low as u32, info.nozzle_temp_high as u32) { return error.into(); }
-        let record = SpoolRecord {
-            brand:brand.trim().into(),
-            material_subtype:if !series.trim().is_empty(){series.trim().into()}else if self.console_presets().iter().any(|p|p.code.as_str()==info.slicer_code&&p.brand.as_str().eq_ignore_ascii_case(brand)){info.slicer_name.clone()}else{material.into()},
-            tag_id: tag,
-            material_type: material.into(),
-            color_code: color.to_ascii_uppercase(),
-            slicer_filament: info.slicer_code,
-            ..Default::default()
-        };
-        match self.dispatch_async_task(AppAsyncTaskRequest::RegisterConsoleTag { record }) {
+        let mut record = existing.unwrap_or_default();
+        record.brand=brand.trim().into();
+        record.material_subtype=if !series.trim().is_empty(){series.trim().into()}else{material.into()};
+        record.tag_id=tag;record.material_type=material.into();record.color_code=color.to_ascii_uppercase();record.slicer_filament=preset.into();if expected_id.is_some(){record.ext_has_k=false;}
+        match self.dispatch_async_task(AppAsyncTaskRequest::RegisterConsoleTag { record, expected_id }) {
             Ok(()) => SharedString::new(),
             Err(_) => "设备正忙，请稍后再试".into(),
         }
     }
 
+    fn prepare_console_tag_library(&self,record:&mut SpoolRecord)->Result<(), &'static str>{
+        // Do not treat unreadable/corrupt storage as an empty library.
+        let saved=self.framework.borrow().fetch(crate::filament_library::KEY.into()).map_err(|_|"读取私有库失败，请重试")?;
+        let mut library:crate::filament_library::Library=match saved{
+            Some(json)=>serde_json::from_str(&json).map_err(|_|"私有库数据异常，请先检查耗材库")?,
+            None=>Default::default(),
+        };
+        let (code,changed)=library.ensure_rfid_profile(&record.brand,&record.material_subtype,&record.material_type,&record.color_code)?;
+        if changed{
+            let json=serde_json::to_string(&library).map_err(|_|"私有库编码失败")?;
+            self.framework.borrow().store(crate::filament_library::KEY.into(),json).map_err(|_|"保存私有库失败，请重试")?;
+            crate::filament_library::invalidate();
+        }
+        record.slicer_filament=code;Ok(())
+    }
+
+    fn private_library(&self)->crate::filament_library::Library {
+        let revision=crate::filament_library::revision();
+        if let Some((r,library))=self.library_cache.borrow().as_ref(){if *r==revision{return library.clone();}}
+        let library:crate::filament_library::Library=self.framework.borrow().fetch(crate::filament_library::KEY.into()).ok().flatten().and_then(|s|serde_json::from_str(&s).ok()).unwrap_or_default();
+        *self.library_cache.borrow_mut()=Some((revision,library.clone()));library
+    }
+
     fn console_presets(&self) -> slint::ModelRc<crate::app::UiConsolePreset> {
         let config = self.app_config.borrow();
-        let mut presets = Vec::new();
         let custom = config.custom_filaments.as_deref().unwrap_or("");
+        let revision=crate::filament_library::revision();
+        if let Some((r,c,rows))=self.presets_cache.borrow().as_ref(){if *r==revision&&c==custom{return rows.clone();}}
+        let mut presets = Vec::new();
         for list in [BASE_FILAMENTS, custom] {
             for line in list.lines() {
                 let fields: Vec<_> = line.split(',').collect();
@@ -992,11 +1088,19 @@ impl ViewModel {
                 });
             }
         }
-        slint::ModelRc::new(slint::VecModel::from(presets))
+        for e in self.private_library().entries {
+            presets.retain(|p|p.code.as_str()!=e.code);
+            presets.push(crate::app::UiConsolePreset{brand:e.brand.into(),code:e.code.into(),name:e.name.into(),material:e.material.into(),temp_min:e.temp_min,temp_max:e.temp_max});
+        }
+        let rows=slint::ModelRc::new(slint::VecModel::from(presets));
+        *self.presets_cache.borrow_mut()=Some((revision,custom.into(),rows.clone()));rows
     }
 
     fn console_calibrations(&self, tray_id: i32, filament: &str) -> slint::ModelRc<crate::app::UiConsoleCalibration> {
         if self.bambu_printer_model.printers.is_empty() { return slint::ModelRc::default(); }
+        let library=self.private_library();
+        let projected=library.entries.iter().find(|e|e.code==filament).and_then(|e|library.bambu(filament,&e.material)).map(|(code,_)|code);
+        let filament=projected.as_deref().unwrap_or(filament);
         let printer = self.bambu_printer_model.borrow();
         let mut rows = Vec::new();
         if let Ok(extruder) = printer.get_extruder_for_tray(tray_id) {
@@ -1020,14 +1124,19 @@ impl ViewModel {
         let Some(info) = self.get_filament_info(preset, Some(material)) else {
             return "找不到耗材配置，请重新选择".into();
         };
+        let library=self.private_library();
+        let Some((wire_code,setting))=library.bambu(preset,material) else{return "该基础类型没有可用的机器映射".into();};
+        let generic=crate::filament_library::generic(material);
+        let mapped=library.entries.iter().find(|e|e.bambu_code==wire_code && e.material==material);
+        let (low,high)=mapped.map(|e|(e.temp_min,e.temp_max)).or_else(||generic.filter(|g|g.code==wire_code).map(|g|(g.temp_min,g.temp_max))).unwrap_or((info.nozzle_temp_low,info.nozzle_temp_high));
         let filament = bambu::FilamentInfo {
-            tray_info_idx: info.slicer_code,
+            tray_info_idx: wire_code,
             tray_type: material.into(),
             tray_color: color.to_ascii_uppercase(),
-            nozzle_temp_min: info.nozzle_temp_low as u32,
-            nozzle_temp_max: info.nozzle_temp_high as u32,
+            nozzle_temp_min: low as u32,
+            nozzle_temp_max: high as u32,
         };
-        match self.bambu_printer_model.borrow_mut().configure_console_slot(tray_id, filament, calibration) {
+        match self.bambu_printer_model.borrow_mut().configure_console_slot(tray_id, filament, calibration,if setting.is_empty(){None}else{Some(&setting)}) {
             Ok(()) => SharedString::new(),
             Err(error) => error.into(),
         }
@@ -1222,7 +1331,7 @@ impl ViewModel {
             }
         };
 
-        UiSlotDisplay {
+        let mut display=UiSlotDisplay {
             preset_code: match &tray.filament { Filament::Known(f) => f.tray_info_idx.as_str().into(), _ => SharedString::new() },
             available_in_spool,
             color_code,
@@ -1232,7 +1341,19 @@ impl ViewModel {
             temp_max,
             temp_min,
             pa,
+        };
+        let actual=tray.meta_info.spool_id.as_ref().and_then(|id|self.store.get_spool_by_id(id)).or_else(||{
+            self.framework.borrow().fetch(format!("bc_{}_{}",printer_borrow.printer_serial,tray_id)).ok().flatten().and_then(|s|serde_json::from_str::<SpoolRecord>(&s).ok())
+        });
+        if let (Some(actual),Filament::Known(wire))=(actual,&tray.filament) {
+            if self.private_library().bambu_identity_color(&actual.slicer_filament,&actual.brand,&actual.material_subtype,&actual.material_type,&actual.color_code).is_some_and(|(code,_)|code==wire.tray_info_idx)
+                && actual.material_type==wire.tray_type && actual.color_code.eq_ignore_ascii_case(&wire.tray_color) {
+                display.preset_code=actual.slicer_filament.into();
+                display.slicer_name=if actual.material_subtype.is_empty(){actual.material_type.into()}else{actual.material_subtype.into()};
+                display.filament_title=format!("{} {}",actual.brand,display.slicer_name).into();
+            }
         }
+        display
     }
 
     fn ui_get_spool_tag_definition_display(
@@ -1415,6 +1536,8 @@ impl ViewModel {
             return;
         }
 
+        self.ui_weak.unwrap().global::<crate::app::AppState>().set_selected_printer_connected(bambu_printer.printer_connectivity_ok==Some(true));
+
         let ui = self.ui_weak.unwrap();
         ui.global::<crate::app::AppState>()
             .set_num_extruders(bambu_printer.num_extruders() as i32);
@@ -1433,9 +1556,9 @@ impl ViewModel {
                 }
                 ams_exist_bits >>= 1;
             }
-            let ams_exists: Rc<slint::VecModel<i32>> = Rc::new(slint::VecModel::from(ams_exist_vec));
-            let ams_exists = slint::ModelRc::from(ams_exists);
-            ui.global::<crate::app::AppState>().set_ams_exists(ams_exists);
+            if !ui.global::<crate::app::AppState>().get_ams_exists().iter().eq(ams_exist_vec.iter().copied()){
+                ui.global::<crate::app::AppState>().set_ams_exists(slint::ModelRc::new(slint::VecModel::from(ams_exist_vec)));
+            }
             let current_shown_ams = ui.global::<crate::app::AppState>().get_curr_ams_id();
             if first_ams > current_shown_ams {
                 ui.global::<crate::app::AppState>().set_curr_ams_id(first_ams);
@@ -1454,7 +1577,8 @@ impl ViewModel {
                 254 => &bambu_printer.virt_trays()[1],
                 _ => &bambu_printer.ams_trays()[ui_tray_id as usize],
             };
-            let mut ui_tray = trays_state.row_data(tray_row).unwrap().clone();
+            let previous_ui_tray=trays_state.row_data(tray_row).unwrap();
+            let mut ui_tray = previous_ui_tray.clone();
             ui_tray.brand=SharedString::new();
             ui_tray.spool_state = crate::app::UiTrayState::from(&curr_tray.state);
             if let bambu::Filament::Known(filament_info) = &curr_tray.filament {
@@ -1486,14 +1610,14 @@ impl ViewModel {
                 if let Filament::Known(wire)=&curr_tray.filament{
                     if let Ok(Some(text))=self.framework.borrow().fetch(format!("bc_{}_{}",bambu_printer.printer_serial,ui_tray_id)){
                         if let Ok(local)=serde_json::from_str::<SpoolRecord>(&text){
-                            if local.slicer_filament==wire.tray_info_idx&&local.color_code.eq_ignore_ascii_case(&wire.tray_color){ui_tray.brand=local.brand.into();}
+                            if self.private_library().bambu_identity_color(&local.slicer_filament,&local.brand,&local.material_subtype,&local.material_type,&local.color_code).is_some_and(|(code,_)|code==wire.tray_info_idx)&&local.color_code.eq_ignore_ascii_case(&wire.tray_color){ui_tray.brand=local.brand.into();}
                         }
                     }
                 }
             }
             ui_tray.weight_display = self.weight_display(curr_tray);
             ui_tray.used_in_print = curr_tray.meta_info.used_in_print;
-            trays_state.set_row_data(tray_row, ui_tray);
+            if ui_tray!=previous_ui_tray{trays_state.set_row_data(tray_row, ui_tray);}
         }
     }
 
@@ -2482,6 +2606,9 @@ impl BambuPrinterObserver for ViewModel {
     }
 
     fn on_printer_connect_status(&self, bambu_printer: &mut BambuPrinter, status: bool) {
+        if bambu_printer.printer_index==self.bambu_printer_model.index{
+            self.ui_weak.unwrap().global::<crate::app::AppState>().set_selected_printer_connected(status);
+        }
         if status {
             // TODO: I can't borrow at this stage because my_mqtt reports this and need to borrow_mut so now can't borrow.
             //       Need to switch to the notifications coming from a notifier object and not directly from the objects.
@@ -2526,6 +2653,7 @@ impl BambuPrinterObserver for ViewModel {
                 bambu::PrinterModelSeries::A1 => 1,
                 bambu::PrinterModelSeries::H2 => 2,
                 bambu::PrinterModelSeries::P2 => 2,
+                bambu::PrinterModelSeries::X2 => 2,
             }
         } else {
             1
@@ -2533,7 +2661,7 @@ impl BambuPrinterObserver for ViewModel {
 
         let chars_to_replace_for_file = match printer.model_series() {
             bambu::PrinterModelSeries::P1 | bambu::PrinterModelSeries::A1 => "!@#\'@/",
-            bambu::PrinterModelSeries::X1 | bambu::PrinterModelSeries::H2 | bambu::PrinterModelSeries::P2 | bambu::PrinterModelSeries::Unknown => "/",
+            bambu::PrinterModelSeries::X1 | bambu::PrinterModelSeries::X2 | bambu::PrinterModelSeries::H2 | bambu::PrinterModelSeries::P2 | bambu::PrinterModelSeries::Unknown => "/",
         };
 
         let threemf_ftp_filename: String = subtask_name
@@ -2641,6 +2769,7 @@ impl SpoolTagObserver for ViewModel {
                 ui.unwrap().global::<crate::app::AppState>().invoke_erasing_succeeded();
             }
             Status::ReadSuccess(read_result) => {
+                ui.unwrap().global::<crate::app::AppState>().set_reassigning_tag(false);
                 // A new tag replaces the staged identity, including when it needs registration.
                 ui.unwrap().global::<crate::app::HubUi>().set_editing(false);
                 self.filament_staging.borrow_mut().clear();
@@ -2777,7 +2906,12 @@ impl FrameworkObserver for ViewModel {
         let mode = match mode {
             WebConfigMode::AP => crate::app::WebConfigState::StartedAP,
             WebConfigMode::STA => {
-                if self.app_config.borrow().missing_configs(false) {
+                // start_web_app calls observers while Framework is mutably borrowed.
+                // missing_configs reads Framework storage and would panic here.
+                let has_hub = crate::hub::validate_config(&self.hub_config.borrow()).is_ok();
+                let has_bambu = self.app_config.borrow().configured_printers.printers
+                    .iter().any(|p| p.serial.is_some() && p.access_code.is_some());
+                if !has_hub && !has_bambu {
                     crate::app::WebConfigState::StartedSTADisplayed
                 } else {
                     crate::app::WebConfigState::StartedSTA
@@ -2842,12 +2976,11 @@ impl FrameworkObserver for ViewModel {
             });
     }
 
-    fn on_webapp_url_update(&self, ip_url: &str, name_url: Option<&str>, ssid: &str) {
-        let final_url = if let Some(name_url) = name_url {
-            &format!("{ip_url} / {name_url}")
-        } else {
-            ip_url
-        };
+    fn on_webapp_url_update(&self, ip_url: &str, _name_url: Option<&str>, ssid: &str) {
+        // Show one directly usable address, rather than two URLs joined by '/'.
+        let final_url = if ip_url.starts_with("http://") || ip_url.starts_with("https://") {
+            format!("{}/config", ip_url.trim_end_matches('/'))
+        } else { ip_url.to_string() };
         term_info!("网页配置地址: {}", final_url);
         self.ui_weak
             .unwrap()
@@ -3361,7 +3494,7 @@ struct GcodeJob {
 
 #[derive(Debug, Clone)]
 enum AppAsyncTaskRequest {
-    RegisterConsoleTag { record: SpoolRecord },
+    RegisterConsoleTag { record: SpoolRecord, expected_id: Option<String> },
     ProcessV1TagRead {
         tag_id: String,
         tag: String,
@@ -3416,12 +3549,27 @@ pub async fn app_async_task(view_model: Rc<RefCell<ViewModel>>) {
 
     loop {
         match requests.receive().await {
-            AppAsyncTaskRequest::RegisterConsoleTag { mut record } => {
-                // Recheck at execution time so repeated taps cannot create duplicates.
-                if store.get_spool_by_hex_tag(&record.tag_id).is_some() { continue; }
-                match store.add_spool(record.clone(), SpoolRecordExt::default()).await {
+            AppAsyncTaskRequest::RegisterConsoleTag { mut record, expected_id } => {
+                let current=store.get_spool_by_hex_tag(&record.tag_id);
+                if current.as_ref().map(|r|&r.id)!=expected_id.as_ref(){continue;}
+                let prepared=view_model.borrow().prepare_console_tag_library(&mut record);
+                if let Err(message)=prepared{
+                    let ui=view_model.borrow().ui_weak.unwrap();let state=ui.global::<crate::app::AppState>();
+                    if state.get_control_state()==crate::app::ControlState::NewTagScan&&state.get_new_tag_scan_tag_id().as_str()==record.tag_id{
+                        state.set_control_state(crate::app::ControlState::PostAction);
+                        state.set_user_message(message.into());state.set_user_message_type(crate::app::StatusType::Error);
+                    }
+                    continue;
+                }
+                let result=if expected_id.is_some(){
+                    store.update_spool(record.clone(),Some(Box::new(|ext|ext.k_info=None))).await.map(|_|record.id.clone())
+                }else{store.add_spool(record.clone(),SpoolRecordExt::default()).await};
+                match result {
                     Ok(id) => {
                         record.id = id;
+                        let w=view_model.borrow().ui_weak.unwrap();let state=w.global::<crate::app::AppState>();
+                        if state.get_control_state()!=crate::app::ControlState::NewTagScan||state.get_new_tag_scan_tag_id().as_str()!=record.tag_id{continue;}
+                        state.set_reassigning_tag(false);
                         view_model.borrow().filament_staging.borrow_mut().set_spool_record(record, StagingOrigin::Scanned);
                         view_model.borrow().display_filament_staging(true);
                     }

@@ -35,6 +35,15 @@ espflash --version
 ./scripts/build-local.ps1 -Mirror
 ```
 
+本机含中文用户目录，Xtensa GNU 链接器需要 ASCII 输出及临时路径。使用已经验证的目录：
+
+```powershell
+./scripts/build-local.ps1 -Mirror -TargetDir G:/STM32/ams-target -TempDir C:/rust-temp
+```
+
+依赖缓存齐全后可加 `-Offline`。使用自定义 `TargetDir` 时，ELF 位于该目录下的
+`xtensa-esp32s3-none-elf/release/SpoolEase`；原 `package-local.ps1` 仍从仓库 `target/` 取文件。
+
 成功后生成空白 WT32-SC01 Plus 所需的完整镜像：
 
 ```powershell

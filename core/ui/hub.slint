@@ -1,4 +1,4 @@
-import { AppState, SpoolStagingState, UiSpoolRecordDisplay } from "app.slint";
+import { AppState, AppBackend, ControlState, SpoolStagingState, UiSpoolRecordDisplay } from "app.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
 import { ScrollView } from "std-widgets.slint";
 export struct HubSlot { box-id:int,index:int,label:string,rgba:string,locked:bool,brand:string,material:string,tint:color,machine-detail:string,base-material:string,preset-code:string,temp-min:int,temp-max:int,series-name:string }
@@ -6,6 +6,11 @@ export global HubUi {
     in-out property <int> active-brand:0;
     in-out property <bool> visible:false;
     in-out property <bool> busy:false;
+    in-out property <bool> connected:false;
+    in-out property <[string]> devices;
+    in-out property <[string]> device-ids;
+    in-out property <int> selected-device:-1;
+    callback select-device(string);
     in-out property <bool> settings-open:false;
     in-out property <bool> editing:false;
     in-out property <int> edit-box:0;
@@ -45,26 +50,30 @@ export component HubPage inherits Rectangle {
         HorizontalLayout {
             height:34px;spacing:6px;
             BrandTabs {}
-            ConsoleLabel {text:HubUi.active-brand==1?"U1":"ACE";font-size:18px;}
+            Rectangle {clip:true;Flickable {width:parent.width;height:parent.height;viewport-height:self.height;viewport-width:max(self.width,HubUi.devices.length*116px);
+                HorizontalLayout {spacing:4px;for device[i] in HubUi.devices: ConsoleButton {width:112px;height:32px;text:AppBackend.console-text(device);primary:i==HubUi.selected-device;enabled:!HubUi.busy;clicked=>{root.page=0;root.selected=-1;HubUi.select-device(HubUi.device-ids[i]);}}}
+            }}
             ConsoleButton {width:58px;text:"读取";enabled:!HubUi.busy;clicked=>{root.selected=-1;HubUi.refresh();}}
             ConsoleButton {width:52px;text:"设置";clicked=>{HubUi.settings-open=true;}}
         }
         HorizontalLayout {
             height:27px;
-            ConsoleLabel {text:HubUi.host==""?"此品牌尚未配置连接":HubUi.host;font-size:12px;color:ConsoleTheme.muted;}
+            ConsoleLabel {text:(HubUi.connected?"● 已连接":"○ 未连接")+" · "+HubUi.brand-name;font-size:12px;color:HubUi.connected?ConsoleTheme.accent:ConsoleTheme.muted;}
             ConsoleButton {width:40px;text:"‹";enabled:root.page>0;clicked=>{root.page = root.page - 1;root.selected=-1;}}
             ConsoleLabel {width:50px;text:(root.page+1)+" / "+Math.max(1,Math.ceil(HubUi.slots.length/4));font-size:12px;}
             ConsoleButton {width:40px;text:"›";enabled:(root.page+1)*4<HubUi.slots.length;clicked=>{root.page+=1;root.selected=-1;}}
         }
         HorizontalLayout {
             height:147px;spacing:7px;
+            width:460px;
             for offset in [0,1,2,3]: Rectangle {
+                width:(460px - 21px)/4;
                 property <int> i:root.page*4+offset;
                 property <HubSlot> slot:HubUi.slots[i];
                 background:ConsoleTheme.panel;border-radius:10px;
                 border-width:root.selected==i?2px:0px;border-color:ConsoleTheme.accent;
                 VerticalLayout {
-                    padding:8px;spacing:6px;
+                    width:parent.width;height:parent.height;padding:8px;spacing:6px;
                     ConsoleLabel {text:HubUi.active-brand==1?"T"+(slot.index+1):"ACE "+(slot.box-id+1)+" · "+(slot.index+1);height:20px;font-size:13px;horizontal-alignment:center;color:ConsoleTheme.muted;}
                     HorizontalLayout {alignment:center;Rectangle {width:46px;height:46px;border-radius:23px;border-width:4px;border-color:#777;background:slot.tint;Rectangle {x:17px;y:17px;width:12px;height:12px;border-radius:6px;background:#343434;}}}
                     ConsoleLabel {text:slot.material==""?"未设置":slot.material;height:28px;horizontal-alignment:center;}
@@ -82,9 +91,10 @@ export component HubPage inherits Rectangle {
             HorizontalLayout {
                 padding:9px;spacing:8px;
                 VerticalLayout {
-                    ConsoleLabel {text:root.error!=""?root.error:HubUi.status;font-size:13px;wrap:word-wrap;}
+                    ConsoleLabel {text:root.error!=""?root.error:AppState.control-state==ControlState.PostAction?AppState.user-message+" · "+AppState.post-action-remaining+"秒后待扫描":HubUi.status;font-size:13px;wrap:word-wrap;}
                     ConsoleLabel {text:root.selected>=0?HubUi.slots[root.selected].machine-detail:AppState.spool-staging-state==SpoolStagingState.Empty?"本地显示实际耗材；机器使用兼容值":"已识别 · "+AppState.spool-staging-info.spool-record.brand+" "+root.material;font-size:11px;color:ConsoleTheme.muted;}
                 }
+                ConsoleButton {width:78px;text:"重设 RFID";enabled:AppState.spool-staging-state!=SpoolStagingState.Empty&&!HubUi.busy;clicked=>{root.error=AppBackend.reassign-scanned-tag();}}
                 ConsoleButton {width:84px;text:HubUi.busy?"处理中":"手动写入";primary:true;
                     enabled:!HubUi.busy&&root.selected>=0&&root.selected<HubUi.slots.length&&AppState.spool-staging-state!=SpoolStagingState.Empty;
                     clicked=>{root.error=HubUi.apply(HubUi.slots[root.selected].box-id,HubUi.slots[root.selected].index,root.material,root.rgba,AppState.spool-staging-info.spool-record.brand==""?"Generic":AppState.spool-staging-info.spool-record.brand,AppState.spool-staging-info.spool-record.material-subtype);}

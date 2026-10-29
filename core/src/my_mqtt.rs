@@ -372,11 +372,15 @@ pub async fn generic_mqtt_task<
         concat!(include_str!("./certs/bambulab.pem"), "\0").as_bytes(),
         concat!(include_str!("./certs/bambulab_p2s.pem"), "\0").as_bytes(),
         concat!(include_str!("./certs/bambulab_h2c.pem"), "\0").as_bytes(),
+        concat!(include_str!("./certs/bambulab_modern.pem"), "\0").as_bytes(),
     ];
     let mut bambu_cert_index = 0;
 
     if printer_model == PrinterModel::H2C {
         bambu_cert_index = 2;
+    }
+    if printer_model == PrinterModel::X2D {
+        bambu_cert_index = 3;
     }
 
     let mut socket_error_count = 0;

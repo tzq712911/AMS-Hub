@@ -18,6 +18,12 @@ overflow-checks = false
 [profile.release.package.esp-wifi]
 opt-level = 3
 
+# Software rendering is CPU-bound; size optimisation made touch redraws costly.
+[profile.release.package.i-slint-core]
+opt-level = 3
+[profile.release.package.esp-hal-app-framework]
+opt-level = 3
+
 [profile.dev]
 lto = false
 
@@ -197,3 +203,9 @@ esp32s2 = [
   "esp-radio/esp32s2",
   "esp-mbedtls/esp32s2",
 ]
+
+[patch."https://github.com/yanshay/esp-mbedtls.git"]
+esp-mbedtls = { path = "../vendor/esp-mbedtls" }
+
+[patch."https://github.com/yanshay/esp-hal-app/"]
+esp-hal-app-framework = { path = "../vendor/esp-hal-app-framework" }

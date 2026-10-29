@@ -14,6 +14,8 @@ pub enum Brand { #[default] U1, Anycubic }
 pub struct Config {
     /// Only configure after verifying the empty-sensor enum for the installed ACE firmware.
     pub ac_empty_status:Option<i64>,
+    pub id:String,
+    pub name:String,
     pub brand: Brand,
     pub host: String,
     pub api_key: String,
@@ -59,15 +61,21 @@ fn token(value: &str) -> Result<&str> {
     }
     Ok(value)
 }
+fn gcode_argument(value:&str)->Result<String> {
+    if value.is_empty() || value.len()>64 || !value.bytes().all(|b|b.is_ascii_alphanumeric()||b" _-+./".contains(&b)) {
+        return Err("机器品牌或系列含不支持的字符");
+    }
+    Ok(if value.contains(' '){format!("\"{value}\"")}else{value.into()})
+}
 
 pub fn u1_command(slot: &Slot) -> Result<String> {
     if slot.index > 3 || slot.box_id != 0 { return Err("U1 工具头必须为 1–4"); }
     if slot.locked { return Err("官方 RFID 耗材不可覆盖"); }
     let f = &slot.filament;
     // Klipper requires SUBTYPE when TYPE is present. Empty quoted subtype is valid.
-    let subtype = if f.subtype.is_empty() { "\"\"" } else { token(&f.subtype)? };
+    let subtype = if f.subtype.is_empty() { "\"\"".into() } else { gcode_argument(&f.subtype)? };
     Ok(format!("SET_PRINT_FILAMENT_CONFIG CONFIG_EXTRUDER={} VENDOR={} FILAMENT_TYPE={} FILAMENT_SUBTYPE={} FILAMENT_COLOR_RGBA={}",
-        slot.index, token(&f.vendor)?, token(&f.material)?, subtype, rgba(&f.rgba)?))
+        slot.index, gcode_argument(&f.vendor)?, token(&f.material)?, subtype, rgba(&f.rgba)?))
 }
 
 pub fn u1_slots(body: &Value) -> Result<Vec<Slot>> {

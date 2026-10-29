@@ -1,4 +1,6 @@
 export global ConsoleTheme {
+    // Keep large label sizes dynamic: the renderer scales the shared 16px atlas.
+    in-out property <float> text-scale:1;
     out property <color> background: #141414;
     out property <color> panel: #242424;
     out property <color> field: #343434;
@@ -20,7 +22,7 @@ export component ConsoleButton inherits Rectangle {
     Text {
         text: root.text;
         color: !root.enabled ? #777777 : root.primary ? #111111 : ConsoleTheme.text;
-        font-size: 17px;
+        font-size:17px * ConsoleTheme.text-scale;
         horizontal-alignment: center;
         vertical-alignment: center;
         overflow: elide;

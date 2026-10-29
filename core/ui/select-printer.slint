@@ -1,3 +1,4 @@
+import { ConsoleTheme } from "console-theme.slint";
 import { MyButton } from "./framework/widgets.slint";
 import { AppBackend, AppState } from "app.slint";
 import { Title } from "framework/widgets.slint";
@@ -14,7 +15,7 @@ export component Title inherits Rectangle {
         horizontal-alignment: center;
         height: 40px;
         text: text;
-        font-size: 20px;
+        font-size:20px * ConsoleTheme.text-scale;
         color: Utils.contrasting_color(root.background);
     }
 }
@@ -33,7 +34,7 @@ export component SelectPrinter inherits VerticalLayout {
   for printer in AppState.available_printers: SelectPrinterButton {
       printer: printer;
       height: 60px;
-      text: (AppState.curr_printer == printer ? "  ✓ ": "      ") + printer + (AppState.default_printer == printer ? " (Default)" : "");
+      text: (AppState.curr_printer == printer ? "  ✓ ": "      ") + AppBackend.console-text(printer) + (AppState.default_printer == printer ? " (Default)" : "");
       clicked  => {
         AppBackend.select-printer(printer); 
         selected();

@@ -144,7 +144,11 @@ export enum SpoolStagingState {
 
 // Functions to call rust
 export global AppBackend {
+    pure callback console-text(value:string)->string;
     pure callback get-console-presets() -> [UiConsolePreset];
+    pure callback get-console-materials() -> [string];
+    pure callback get-console-generic(material:string) -> UiConsolePreset;
+    pure callback get-console-mapping(preset:string,material:string,brand:string,series:string,color:string) -> string;
     pure callback get-console-presets-for-brand(brand:string)->[UiConsolePreset];
     pure callback get-console-colors(preset:string)->[UiConsoleColor];
     pure callback get-console-brand(preset:string)->string;
@@ -156,6 +160,8 @@ export global AppBackend {
     callback register-console-tag(tag-id: string, preset-code: string, material: string, color-code: string) -> string;
     callback register-console-tag-brand(tag-id:string,preset-code:string,material:string,color-code:string,brand:string,series:string)->string;
     callback clear-staging();
+    callback reassign-scanned-tag() -> string;
+    callback clear-console-slot(tray:int) -> string;
     callback set-staging-to-tray(tray-id: int);
     callback encode-tag() -> bool;
     callback read-tag-mode();
@@ -260,8 +266,13 @@ export global AppState {
     in-out property <ControlState> control-state: ControlState.Booting;
     changed control-state => {
         self.stop-highlight-trays();
+        self.post-action-remaining = self.control-state == ControlState.PostAction ? 20 : 0;
     }
+    in-out property <int> post-action-remaining: 0;
+    in-out property <bool> reassigning-tag: false;
+    in-out property <UiSpoolRecordDisplay> reassign-info;
     in-out property <bool> some-printer-connected: false;
+    in-out property <bool> selected-printer-connected: false;
 
     // Global state variables for New Tag Scan Control-State
     in-out property <NewScannedTagType> new-tag-scan-tag-type; // Simple or Definition
@@ -431,7 +442,7 @@ export global AppState {
         self.user-message-type = StatusType.Success;
         start-highlight-tray(999);
         if final-step {
-            self.control-state = ControlState.PostAction;
+            self.control-state = ControlState.Ready;
         }
     }
 
@@ -685,6 +696,7 @@ export global AppState {
 
     // Rust callable functions for new-tag-scan flow
     public function new-tag-scanned(tag-id: string) {
+        self.reassigning-tag=false;
         self.new-tag-scan-page = NewTagScanPage.OperationSelect;
         self.new-tag-scan-tag-type = NewScannedTagType.SimpleTag;
         self.new-tag-operation = NewTagOperation.None;

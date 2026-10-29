@@ -1,93 +1,107 @@
-import { ScrollView } from "std-widgets.slint";
 import { AppState, AppBackend, ControlState, SpoolStagingState, UiTray, UiConsolePreset, UiConsoleColor, UiConsoleCalibration, UiSpoolRecordDisplay } from "app.slint";
 import { HubUi } from "hub.slint";
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
+import { ConsoleScrollList } from "console-scroll-list.slint";
 
 export component ConsoleEditor inherits Rectangle {
-    in property <bool> registration-mode:false;
-    property <bool> is-hub:HubUi.editing;
-    background:ConsoleTheme.background;
-    TouchArea {width:parent.width;height:parent.height;clicked=>{}}
-    property <int> tray-index:Math.max(0,AppState.tray-selected-tray-index);
-    property <UiTray> tray:AppState.trays-state[tray-index];
-    property <bool> use-scan:!registration-mode&&AppState.spool-staging-state!=SpoolStagingState.Empty;
-    property <UiSpoolRecordDisplay> definition:registration-mode?AppBackend.get-spool-tag-definition-display(AppState.new-tag-scan-definition-type,AppState.new-tag-scan-definition-info,0):{};
-    property <string> source-code:registration-mode?definition.spool-record.slicer-filament:use-scan?AppState.spool-staging-info.spool-record.slicer-filament:is-hub?HubUi.editor-info.spool-record.slicer-filament:AppBackend.get-slot-display(tray.id).preset-code;
+    in property <bool> registration-mode: false;
+    property <bool> is-hub: HubUi.editing;
+    background: ConsoleTheme.background;
+    TouchArea { clicked => {} }
+    property <int> tray-index: max(0, AppState.tray-selected-tray-index);
+    property <UiTray> tray: AppState.trays-state[tray-index];
+    property <bool> use-scan: !registration-mode && AppState.spool-staging-state != SpoolStagingState.Empty;
+    property <UiSpoolRecordDisplay> definition: registration-mode && AppState.reassigning-tag ? AppState.reassign-info : registration-mode ? AppBackend.get-spool-tag-definition-display(AppState.new-tag-scan-definition-type,AppState.new-tag-scan-definition-info,0) : {};
+    property <string> source-code: registration-mode ? definition.spool-record.slicer-filament : use-scan ? AppState.spool-staging-info.spool-record.slicer-filament : is-hub ? HubUi.editor-info.spool-record.slicer-filament : AppBackend.get-slot-display(tray.id).preset-code;
     property <string> chosen-brand;
-    property <string> brand-name:chosen-brand!=""?chosen-brand:registration-mode&&definition.spool-record.brand!=""?definition.spool-record.brand:use-scan&&AppState.spool-staging-info.spool-record.brand!=""?AppState.spool-staging-info.spool-record.brand:is-hub&&HubUi.editor-info.spool-record.brand!=""?HubUi.editor-info.spool-record.brand:!registration-mode&&!is-hub&&tray.brand!=""?tray.brand:registration-mode&&source-code==""?"选择品牌":AppBackend.get-console-brand(source-code);
-    property <bool> generic-fallback:false;
-    property <[UiConsolePreset]> presets:AppBackend.get-console-presets-for-brand(generic-fallback?"Generic":brand-name);
-    property <int> selected-preset:-1;
-    property <string> preset-code:selected-preset>=0?presets[selected-preset].code:chosen-brand!=""?"":source-code;
-    property <string> material-name:selected-preset>=0?presets[selected-preset].name:chosen-brand!=""?"":registration-mode?definition.slicer-filament-name:use-scan?AppState.spool-staging-info.slicer-filament-name:is-hub?HubUi.editor-info.slicer-filament-name:AppBackend.get-slot-display(tray.id).slicer-name;
-    property <string> material-type:selected-preset>=0?presets[selected-preset].material:chosen-brand!=""?"":registration-mode?definition.spool-record.material-type:use-scan?AppState.spool-staging-info.spool-record.material-type:is-hub?HubUi.editor-info.spool-record.material-type:tray.filament.material;
-    property <int> temp-min:selected-preset>=0?presets[selected-preset].temp-min:registration-mode?definition.temp-min:use-scan?AppState.spool-staging-info.temp-min:is-hub?HubUi.editor-info.temp-min:AppBackend.get-slot-display(tray.id).temp-min;
-    property <int> temp-max:selected-preset>=0?presets[selected-preset].temp-max:registration-mode?definition.temp-max:use-scan?AppState.spool-staging-info.temp-max:is-hub?HubUi.editor-info.temp-max:AppBackend.get-slot-display(tray.id).temp-max;
-    property <[UiConsoleColor]> palette:AppBackend.get-console-colors(preset-code);
-    property <int> selected-color:-1;
-    property <string> custom-hex;
-    property <int> custom-digits:0;
-    property <[string]> hex-digits:["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"];
-    property <string> color-code:custom-digits==6?custom-hex+"FF":selected-color>=0?palette[selected-color].code:selected-preset>=0||chosen-brand!=""?"":registration-mode?definition.spool-record.color-code:use-scan?AppState.spool-staging-info.spool-record.color-code:is-hub?HubUi.editor-info.spool-record.color-code:AppBackend.get-slot-display(tray.id).color-code;
-    property <color> filament-color:AppBackend.parse-console-color(color-code);
-    property <[UiConsoleCalibration]> calibrations:registration-mode||is-hub?[]:AppBackend.get-console-calibrations(tray.id,preset-code);
-    property <int> selected-calibration:-1;
-    property <int> picker:0;
+    property <string> chosen-type;
+    property <string> chosen-color;
+    property <string> brand-name: chosen-brand != "" ? chosen-brand : registration-mode && definition.spool-record.brand != "" ? definition.spool-record.brand : use-scan && AppState.spool-staging-info.spool-record.brand != "" ? AppState.spool-staging-info.spool-record.brand : is-hub && HubUi.editor-info.spool-record.brand != "" ? HubUi.editor-info.spool-record.brand : !registration-mode && !is-hub && tray.brand != "" ? tray.brand : registration-mode && source-code == "" ? "选择品牌" : AppBackend.get-console-brand(source-code);
+    property <[string]> brands: AppBackend.get-console-brands();
+    property <[string]> materials: AppBackend.get-console-materials();
+    property <[UiConsolePreset]> presets: AppBackend.get-console-presets-for-brand(brand-name);
+    property <int> selected-preset: -1;
+    property <bool> generic-fallback: false;
+    property <string> original-type: registration-mode ? definition.spool-record.material-type : use-scan ? AppState.spool-staging-info.spool-record.material-type : is-hub ? HubUi.editor-info.spool-record.material-type : tray.filament.material;
+    property <string> material-type: chosen-type != "" ? chosen-type : selected-preset >= 0 ? presets[selected-preset].material : original-type;
+    property <UiConsolePreset> generic: AppBackend.get-console-generic(material-type);
+    property <string> preset-code: generic-fallback ? generic.code : selected-preset >= 0 ? presets[selected-preset].code : source-code;
+    property <string> material-name: generic-fallback ? material-type : selected-preset >= 0 ? presets[selected-preset].name : registration-mode ? definition.slicer-filament-name : use-scan ? AppState.spool-staging-info.slicer-filament-name : is-hub ? HubUi.editor-info.slicer-filament-name : AppBackend.get-slot-display(tray.id).slicer-name;
+    property <int> temp-min: generic-fallback ? generic.temp-min : selected-preset >= 0 ? presets[selected-preset].temp-min : registration-mode ? definition.temp-min : use-scan ? AppState.spool-staging-info.temp-min : is-hub ? HubUi.editor-info.temp-min : AppBackend.get-slot-display(tray.id).temp-min;
+    property <int> temp-max: generic-fallback ? generic.temp-max : selected-preset >= 0 ? presets[selected-preset].temp-max : registration-mode ? definition.temp-max : use-scan ? AppState.spool-staging-info.temp-max : is-hub ? HubUi.editor-info.temp-max : AppBackend.get-slot-display(tray.id).temp-max;
+    property <[UiConsoleColor]> palette: AppBackend.get-console-colors(preset-code);
+    property <string> color-code: chosen-color != "" ? chosen-color : registration-mode ? definition.spool-record.color-code : use-scan ? AppState.spool-staging-info.spool-record.color-code : is-hub ? HubUi.editor-info.spool-record.color-code : AppBackend.get-slot-display(tray.id).color-code;
+    property <color> filament-color: AppBackend.parse-console-color(color-code);
+    property <[UiConsoleCalibration]> calibrations: registration-mode || is-hub ? [] : AppBackend.get-console-calibrations(tray.id,preset-code);
+    property <int> selected-calibration: -1;
+    property <int> picker: 0;
+    property <length> field-height: registration-mode || is-hub ? 52px : 42px;
     property <string> notice;
-    property <bool> submitted:false;
-    function close(){HubUi.editing=false;AppState.control-state=ControlState.Ready;}
-    function clear-edits(){chosen-brand="";generic-fallback=false;selected-preset=-1;selected-color=-1;custom-digits=0;selected-calibration=-1;notice="";submitted=false;}
+    property <bool> submitted: false;
+    property <string> brand-draft;
+    property <string> rgb-draft;
+    property <int> rgb-digits: 0;
+    property <[string]> hex-keys: ["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"];
+    property <[string]> name-keys: ["1","2","3","4","5","6","7","8","9","0","Q","W","E","R","T","Y","U","I","O","P","A","S","D","F","G","H","J","K","L","-","Z","X","C","V","B","N","M","_","."," "];
+    function close() { HubUi.editing=false; if AppState.control-state!=ControlState.PostAction{AppState.control-state=ControlState.Ready;} }
+    function clear-edits() { chosen-brand="";chosen-type="";chosen-color="";generic-fallback=false;selected-preset=-1;selected-calibration=-1;notice="";submitted=false; }
+    function choose-brand(brand:string) {
+        if brand==brand-name {picker=0;return;}
+        chosen-type=material-type;chosen-color=color-code;chosen-brand=brand;
+        selected-preset=-1;generic-fallback=true;selected-calibration=-1;
+        picker=0;notice="";submitted=false;
+    }
     VerticalLayout {
+        visible:root.picker==0;
         width:parent.width;height:parent.height;
-        padding:10px;spacing:7px;
-        HorizontalLayout {
-            height:34px;spacing:8px;
-            ConsoleButton {width:48px;text:"‹";clicked=>{root.close();}}
-            ConsoleLabel {text:root.registration-mode?"绑定新 RFID":"编辑耗材";font-size:21px;}
-            ConsoleLabel {text:root.registration-mode?"本地真实信息":"槽位 "+(root.is-hub?HubUi.edit-index+1:Math.mod(root.tray.id,4)+1);font-size:13px;color:ConsoleTheme.muted;horizontal-alignment:right;}
+        padding:4px;spacing:3px;
+        HorizontalLayout { height:40px;spacing:8px;
+            ConsoleButton {width:66px;height:40px;text:"‹ 返回";clicked=>{root.close();}}
+            ConsoleLabel {text:root.registration-mode?(AppState.reassigning-tag?"重设 RFID":"绑定新 RFID"):"编辑耗材";font-size:20px * ConsoleTheme.text-scale;}
+            ConsoleLabel {text:root.registration-mode?"本地真实信息":"槽位 "+(root.is-hub?HubUi.edit-index+1:Math.mod(root.tray.id,4)+1);font-size:12px;color:ConsoleTheme.muted;horizontal-alignment:right;}
         }
-        Rectangle {
-            vertical-stretch:1;max-height:1000px;
-            background:ConsoleTheme.panel;border-radius:12px;
-            VerticalLayout {
-                padding:10px;spacing:4px;
-                if !root.registration-mode: HorizontalLayout {
-                    height:26px;spacing:8px;
-                    ConsoleButton {text:"机器当前值";height:26px;primary:!root.use-scan;clicked=>{root.use-scan=false;root.clear-edits();}}
-                    ConsoleButton {text:"使用扫描值";height:26px;primary:root.use-scan;enabled:AppState.spool-staging-state!=SpoolStagingState.Empty;clicked=>{root.use-scan=true;root.clear-edits();}}
+        Rectangle {background:ConsoleTheme.panel;border-radius:10px;vertical-stretch:1;max-height:1000px;
+            VerticalLayout {padding:4px;spacing:2px;
+                if !root.registration-mode: HorizontalLayout {height:32px;spacing:6px;
+                    ConsoleButton {text:"当前槽位";height:32px;primary:!root.use-scan;clicked=>{root.use-scan=false;root.clear-edits();}}
+                    ConsoleButton {text:"使用扫描值";height:32px;primary:root.use-scan;enabled:AppState.spool-staging-state!=SpoolStagingState.Empty;clicked=>{root.use-scan=true;root.clear-edits();}}
                 }
-                if root.registration-mode: ConsoleLabel {text:"UID "+AppState.new-tag-scan-tag-id;height:20px;font-size:12px;color:ConsoleTheme.muted;}
-                HorizontalLayout {height:32px;spacing:8px;
-                    ConsoleLabel {width:86px;text:"1 品牌";}
-                    ConsoleButton {text:root.brand-name+" ▾";clicked=>{root.picker=4;}}
+                if root.registration-mode: ConsoleLabel {text:"UID "+AppState.new-tag-scan-tag-id;height:18px;font-size:12px;color:ConsoleTheme.muted;}
+                HorizontalLayout {height:root.field-height;spacing:8px;
+                    ConsoleLabel {width:66px;text:"品牌";}
+                    ConsoleButton {text:root.brand-name+" ▾";height:root.field-height;clicked=>{root.picker=4;}}
                 }
-                HorizontalLayout {height:32px;spacing:8px;
-                    ConsoleLabel {width:86px;text:"2 系列";}
-                    ConsoleButton {text:(root.material-name==""?"选择该品牌系列":root.material-name)+" ▾";enabled:root.brand-name!="选择品牌";clicked=>{root.picker=1;}}
+                HorizontalLayout {height:root.field-height;spacing:8px;
+                    ConsoleLabel {width:66px;text:"耗材类型";font-size:14px;}
+                    ConsoleButton {text:(root.material-name==""?"选择该品牌的耗材类型":root.material-name)+" ▾";height:root.field-height;enabled:root.brand-name!="选择品牌";clicked=>{root.picker=1;}}
                 }
-                HorizontalLayout {height:32px;spacing:8px;
-                    ConsoleLabel {width:86px;text:"3 颜色";}
-                    Rectangle {width:30px;border-radius:6px;background:root.filament-color;}
-                    ConsoleButton {text:(root.selected-color>=0?root.palette[root.selected-color].name:root.color-code==""?"选择颜色":root.color-code)+" ▾";enabled:root.preset-code!="";clicked=>{root.picker=3;}}
+                HorizontalLayout {height:root.field-height;spacing:8px;
+                    ConsoleLabel {width:66px;text:"颜色";}
+                    Rectangle {width:124px;background:root.filament-color;border-radius:6px;border-width:1px;border-color:#777;TouchArea {clicked=>{root.picker=3;}}}
+                    ConsoleButton {text:(root.color-code==""?"选择实际颜色":root.color-code)+" ▾";height:root.field-height;clicked=>{root.picker=3;}}
                 }
-                if !root.registration-mode&&!root.is-hub: HorizontalLayout {height:30px;spacing:8px;
-                    ConsoleLabel {width:86px;text:"压力 K";}
-                    ConsoleButton {text:(root.selected-calibration<0?"自动匹配 / 默认":root.calibrations[root.selected-calibration].name)+" ▾";clicked=>{root.picker=2;}}
+                if !root.registration-mode&&!root.is-hub: HorizontalLayout {height:32px;spacing:8px;
+                    ConsoleLabel {width:66px;text:"压力 K";}
+                    ConsoleButton {text:root.selected-calibration<0?"自动匹配 / 默认 ▾":root.calibrations[root.selected-calibration].name;height:32px;clicked=>{root.picker=2;}}
                 }
-                ConsoleLabel {height:18px;font-size:11px;color:ConsoleTheme.muted;text:root.temp-min>0?"参考温度 "+root.temp-min+"–"+root.temp-max+" °C · 实际参数按机器设置":"实际资料本地保存；目标机器使用兼容值";}
+                ConsoleLabel {height:14px;font-size:11px;color:ConsoleTheme.accent;text:(root.temp-min>0?root.material-type+" "+root.temp-min+"–"+root.temp-max+"°C · ":"")+AppBackend.get-console-mapping(root.preset-code,root.material-type,root.brand-name,root.material-name,root.color-code);}
             }
         }
-        HorizontalLayout {height:40px;spacing:8px;
+        HorizontalLayout {height:44px;spacing:6px;
             ConsoleLabel {text:root.notice;font-size:11px;wrap:word-wrap;color:root.submitted?ConsoleTheme.accent:ConsoleTheme.error;}
-            ConsoleButton {width:65px;text:"重置";clicked=>{root.clear-edits();}}
-            ConsoleButton {width:95px;primary:true;text:root.submitted?"处理中":root.registration-mode?"保存绑定":"确认写入";
-                enabled:!root.submitted&&(root.registration-mode||root.is-hub||AppState.some-printer-connected)&&root.preset-code!=""&&root.material-type!=""&&root.color-code!="";
+            ConsoleButton {width:88px;height:44px;text:"重置";enabled:!root.submitted;clicked=>{
+                if root.registration-mode {root.clear-edits();}
+                else if root.is-hub {root.notice="此机器暂不支持清空耗材资料";}
+                else {root.notice=AppBackend.clear-console-slot(root.tray.id);root.submitted=root.notice=="";if root.submitted{root.close();}}
+            }}
+            ConsoleButton {width:128px;height:44px;primary:true;text:root.submitted?"处理中":root.registration-mode?"保存绑定":"确认写入";
+                enabled:!root.submitted&&(root.registration-mode||root.is-hub||AppState.some-printer-connected)&&root.brand-name!="选择品牌"&&root.preset-code!=""&&root.material-type!=""&&root.color-code!="";
                 clicked=>{
                     if root.registration-mode {
-                        root.notice=AppBackend.register-console-tag-brand(AppState.new-tag-scan-tag-id,root.preset-code,root.material-type,root.color-code,root.brand-name,root.generic-fallback?root.material-type:root.material-name);root.submitted=root.notice=="";
+                        root.notice=AppBackend.register-console-tag-brand(AppState.new-tag-scan-tag-id,root.preset-code,root.material-type,root.color-code,root.brand-name,root.material-name);root.submitted=root.notice=="";
                     }else if root.is-hub{
                         root.notice=HubUi.apply(HubUi.edit-box,HubUi.edit-index,root.material-type,root.color-code,root.brand-name,root.material-name);if root.notice==""{HubUi.editing=false;}
-                    }else if root.use-scan&&root.selected-preset<0&&root.selected-color<0&&root.custom-digits==0&&root.chosen-brand==""&&root.selected-calibration<0{
+                    }else if root.use-scan&&root.selected-preset<0&&root.chosen-color==""&&root.chosen-brand==""&&root.chosen-type==""&&root.selected-calibration<0{
                         AppBackend.set-staging-to-tray(root.tray.id);
                     }else{
                         root.notice=AppBackend.configure-console-profile(root.tray.id,root.preset-code,root.material-type,root.color-code,root.selected-calibration<0?-1:root.calibrations[root.selected-calibration].id,root.brand-name,root.material-name);root.submitted=root.notice=="";
@@ -98,35 +112,80 @@ export component ConsoleEditor inherits Rectangle {
         }
     }
     if picker!=0: Rectangle {
-        background:ConsoleTheme.background;
-        TouchArea {width:parent.width;height:parent.height;clicked=>{}}
-        VerticalLayout {padding:10px;spacing:8px;
-            HorizontalLayout {height:36px;
-                ConsoleLabel {text:root.picker==4?"选择品牌":root.picker==1?root.brand-name+" · 系列":root.picker==2?"选择 K 校准":root.picker==5?"输入实际 RGB 色值":"选择实际颜色";font-size:20px;}
-                ConsoleButton {width:65px;text:"返回";clicked=>{root.picker=0;}}
+        x:4px;y:4px;width:118px;height:parent.height - 8px;background:ConsoleTheme.panel;border-radius:8px;
+        VerticalLayout {padding:8px;spacing:6px;alignment:start;
+            ConsoleLabel {text:"当前耗材";height:24px;font-size:14px;color:ConsoleTheme.muted;}
+            ConsoleLabel {text:root.brand-name;height:32px;wrap:word-wrap;}
+            ConsoleLabel {text:root.material-name;height:40px;wrap:word-wrap;}
+            Rectangle {height:52px;background:root.filament-color;border-radius:6px;}
+            ConsoleButton {text:"取消";height:40px;clicked=>{root.picker=0;}}
+        }
+    }
+    if picker!=0: Rectangle {TouchArea {clicked=>{root.picker=0;}}}
+    if picker!=0: Rectangle {
+        x:126px;width:parent.width - 126px;background:ConsoleTheme.background;
+        TouchArea {clicked=>{}}
+        VerticalLayout {width:parent.width;height:parent.height;padding:8px;spacing:6px;
+            HorizontalLayout {height:40px;
+                ConsoleLabel {text:root.picker==4?"选择品牌":root.picker==1?"选择耗材类型":root.picker==7?"未收录耗材":root.picker==2?"选择 K 校准":root.picker==5?"实际 RGB":root.picker==6?"自定义品牌":"选择颜色";font-size:18px;}
+                ConsoleButton {width:76px;height:40px;text:"返回";clicked=>{root.picker=0;}}
             }
-            if root.picker==4: ScrollView {VerticalLayout {spacing:5px;for brand in AppBackend.get-console-brands(): ConsoleButton {height:40px;text:brand;clicked=>{root.chosen-brand=brand;root.generic-fallback=false;root.selected-preset=-1;root.selected-color=-1;root.custom-digits=0;root.selected-calibration=-1;root.picker=1;root.notice="";root.submitted=false;}}}}
-            if root.picker==1: ScrollView {VerticalLayout {spacing:5px;
-                for preset[index] in root.presets: ConsoleButton {height:40px;text:preset.name;clicked=>{root.selected-preset=index;root.selected-color=-1;root.custom-digits=0;root.selected-calibration=-1;root.picker=3;root.submitted=false;root.notice="";}}
-                if root.presets.length==0: ConsoleLabel {height:65px;text:"未收录此品牌系列。可导入目录，或明确使用通用基础类型；实际品牌仍保留。";wrap:word-wrap;font-size:14px;}
-                if root.presets.length==0: ConsoleButton {height:40px;text:"使用通用基础类型";clicked=>{root.generic-fallback=true;}}
-            }}
-            if root.picker==3: ScrollView {VerticalLayout {spacing:5px;
-                ConsoleButton {height:38px;text:"自定义实际 RGB 色值";clicked=>{root.custom-digits=0;root.custom-hex="";root.picker=5;}}
-                for item[index] in root.palette: Rectangle {height:38px;background:ConsoleTheme.panel;border-radius:7px;
-                    HorizontalLayout {padding:5px;spacing:12px;Rectangle {width:28px;background:item.tint;border-radius:5px;}ConsoleLabel {text:item.name+" · "+item.code;font-size:14px;}}
-                    TouchArea {clicked=>{root.selected-color=index;root.custom-digits=0;root.picker=0;root.submitted=false;root.notice="";}}
+            if root.picker==4: brand-list := ConsoleScrollList {row-height:52px;row-count:root.brands.length+1;
+                for window-index in brand-list.visible-row-count: ConsoleButton {
+                    property <int> source-row:brand-list.first-row+window-index;
+                    y:self.source-row*52px;height:48px;width:brand-list.content-width;
+                    text:self.source-row==0?"其他 / 自定义品牌":root.brands[self.source-row - 1];
+                    primary:self.source-row>0&&root.brands[self.source-row - 1]==root.brand-name;
+                    clicked=>{if self.source-row==0{root.brand-draft="";root.picker=6;}else{root.choose-brand(root.brands[self.source-row - 1]);}}
                 }
-            }}
-            if root.picker==5: VerticalLayout {spacing:6px;
-                ConsoleLabel {height:25px;text:"#"+root.custom-hex;font-size:20px;}
-                for row in [0,1,2,3]: HorizontalLayout {spacing:6px;for col in [0,1,2,3]: ConsoleButton {text:root.hex-digits[row*4+col];height:35px;clicked=>{if root.custom-digits<6{root.custom-hex+=root.hex-digits[row*4+col];root.custom-digits+=1;}}}}
-                HorizontalLayout {ConsoleButton {text:"清空";clicked=>{root.custom-hex="";root.custom-digits=0;}}ConsoleButton {text:"确认颜色";primary:true;enabled:root.custom-digits==6;clicked=>{root.selected-color=-1;root.picker=0;root.submitted=false;}}}
             }
-            if root.picker==2: ScrollView {VerticalLayout {spacing:5px;
-                ConsoleButton {height:40px;text:"自动匹配 / 默认";clicked=>{root.selected-calibration=-1;root.picker=0;}}
-                for c[index] in root.calibrations: ConsoleButton {height:40px;text:c.name;clicked=>{root.selected-calibration=index;root.picker=0;}}
-            }}
+            if root.picker==7 || (root.picker==1 && root.presets.length==0): fallback-list := ConsoleScrollList {row-height:52px;row-count:root.materials.length;
+                for window-index in fallback-list.visible-row-count: ConsoleButton {
+                    property <int> source-row:fallback-list.first-row+window-index;
+                    property <string> material:root.materials[self.source-row];
+                    y:self.source-row*52px;height:48px;width:fallback-list.content-width;text:self.material;primary:self.material==root.material-type;
+                    clicked=>{if self.material!=root.material-type{root.chosen-color=root.color-code;root.chosen-type=self.material;root.selected-preset=-1;root.generic-fallback=true;root.selected-calibration=-1;}root.picker=0;root.submitted=false;}
+                }
+            }
+            if root.picker==1 && root.presets.length>0: material-list := ConsoleScrollList {row-height:52px;row-count:root.presets.length+1;
+                for window-index in material-list.visible-row-count: ConsoleButton {
+                    property <int> source-row:material-list.first-row+window-index;
+                    y:self.source-row*52px;height:48px;width:material-list.content-width;text:self.source-row==0?"其他 / 未收录耗材":root.presets[self.source-row - 1].name;
+                    clicked=>{if self.source-row==0{root.picker=7;}else{root.chosen-color=root.color-code;root.chosen-type=root.presets[self.source-row - 1].material;root.selected-preset=self.source-row - 1;root.generic-fallback=false;root.selected-calibration=-1;root.picker=0;root.submitted=false;root.notice="";}}
+                }
+            }
+            if root.picker==3: VerticalLayout {spacing:6px;
+                ConsoleButton {height:36px;text:"自定义 RGB 色值";clicked=>{root.rgb-draft="";root.rgb-digits=0;root.picker=5;}}
+                color-list := ConsoleScrollList {
+                    property <int> columns:max(1,floor(self.content-width/48px));
+                    row-count:ceil(root.palette.length/self.columns);row-height:48px;
+                    for item[index] in root.palette: Rectangle {
+                        x:Math.mod(index,color-list.columns)*(color-list.content-width/color-list.columns)+3px;
+                        y:floor(index/color-list.columns)*48px+3px;
+                        width:color-list.content-width/color-list.columns - 6px;height:42px;
+                        background:item.tint;border-radius:6px;
+                        border-width:root.color-code==item.code?3px:1px;border-color:root.color-code==item.code?ConsoleTheme.accent:#777;
+                        TouchArea {clicked=>{root.chosen-color=item.code;root.picker=0;root.submitted=false;root.notice="";}}
+                    }
+                }
+            }
+            if root.picker==2: calibration-list := ConsoleScrollList {row-count:root.calibrations.length+1;
+                ConsoleButton {y:0px;height:40px;width:calibration-list.content-width;text:"自动匹配 / 默认";clicked=>{root.selected-calibration=-1;root.picker=0;}}
+                for c[index] in root.calibrations: ConsoleButton {y:(index+1)*44px;height:40px;width:calibration-list.content-width;text:c.name;clicked=>{root.selected-calibration=index;root.picker=0;}}
+            }
+            if root.picker==5: VerticalLayout {spacing:6px;
+                ConsoleLabel {height:28px;text:"#"+root.rgb-draft;font-size:20px * ConsoleTheme.text-scale;}
+                for row in [0,1,2,3]: HorizontalLayout {spacing:4px;for col in [0,1,2,3]: ConsoleButton {text:root.hex-keys[row*4+col];height:33px;clicked=>{if root.rgb-digits<6{root.rgb-draft+=root.hex-keys[row*4+col];root.rgb-digits+=1;}}}}
+                HorizontalLayout {spacing:4px;ConsoleButton {text:"清空";clicked=>{root.rgb-draft="";root.rgb-digits=0;}}ConsoleButton {text:"确认颜色";primary:true;enabled:root.rgb-digits==6;clicked=>{root.chosen-color=root.rgb-draft+"FF";root.picker=0;root.submitted=false;}}}
+            }
+            if root.picker==6: VerticalLayout {spacing:5px;
+                Rectangle {height:32px;background:ConsoleTheme.field;TextInput {text<=>root.brand-draft;color:ConsoleTheme.text;font-size:17px * ConsoleTheme.text-scale;single-line:true;}}
+                ConsoleLabel {height:30px;text:"品牌可用屏幕键盘输入；中文名称可从网页私有库录入";font-size:11px;wrap:word-wrap;}
+                for row in [0,1,2,3]: HorizontalLayout {spacing:2px;for col in [0,1,2,3,4,5,6,7,8,9]: ConsoleButton {text:root.name-keys[row*10+col];height:29px;clicked=>{root.brand-draft+=root.name-keys[row*10+col];}}}
+                HorizontalLayout {spacing:4px;ConsoleButton {text:"清空";clicked=>{root.brand-draft="";}}ConsoleButton {text:"确认品牌";primary:true;enabled:root.brand-draft!="";clicked=>{root.choose-brand(root.brand-draft);}}}
+            }
         }
     }
 }
+
+

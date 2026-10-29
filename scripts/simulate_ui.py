@@ -44,6 +44,10 @@ class Simulator:
         d = self.device
         self.catalog=d.get_property("demo-presets")
         d.set_global_callback("AppBackend", "get-console-presets", lambda: d.get_property("demo-presets"))
+        d.set_global_callback("AppBackend", "get-console-materials", lambda: slint.ListModel([r[0] for r in list(csv.reader((ROOT/'core/data/materials.csv').open(encoding='utf-8')))[1:] if r]))
+        d.set_global_callback("AppBackend", "get-console-generic", self.generic_for)
+        d.set_global_callback("AppBackend", "console-text", lambda text: text)
+        d.set_global_callback("AppBackend", "get-console-mapping", lambda code,material,brand,series,color: '机器：Generic '+material+' · 演示')
         d.set_global_callback("AppBackend", "get-console-brands", lambda: slint.ListModel(["Bambu Lab","Generic","eSUN","Polymaker","Overture","SUNLU","Snapmaker","Anycubic"]))
         d.set_global_callback("AppBackend", "get-console-presets-for-brand",self.presets_for_brand)
         d.set_global_callback("AppBackend", "get-console-brand",lambda code:field(self.lookup(code),"brand") if self.lookup(code) else "Generic")
@@ -72,6 +76,15 @@ class Simulator:
 
     def lookup(self,code):
         return next((self.catalog.row_data(i) for i in range(self.catalog.row_count()) if field(self.catalog.row_data(i),"code")==code),None)
+
+    def generic_for(self, material):
+        result=copy.copy(self.device.get_property('preset-template'))
+        for row in list(csv.reader((ROOT/'core/data/materials.csv').open(encoding='utf-8')))[1:]:
+            if len(row)>=4 and row[0]==material:
+                for key,value in [('brand','Generic'),('code',row[1]),('name','Generic '+material),('material',material),('temp-min',int(row[2])),('temp-max',int(row[3]))]:
+                    setattr(result,key.replace('-','_'),value)
+                break
+        return result
 
     def presets_for_brand(self,brand):
         return slint.ListModel([self.catalog.row_data(i) for i in range(self.catalog.row_count()) if field(self.catalog.row_data(i),"brand").lower()==brand.lower()])

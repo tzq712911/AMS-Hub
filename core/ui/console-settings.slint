@@ -1,5 +1,5 @@
 import { ConsoleTheme, ConsoleButton, ConsoleLabel } from "console-theme.slint";
-import { FrameworkState, FrameworkBackend } from "framework/framework.slint";
+import { FrameworkState, FrameworkBackend, WebConfigState } from "framework/framework.slint";
 import { AppState } from "app.slint";
 import { HubUi } from "hub.slint";
 
@@ -23,7 +23,7 @@ export component ConsoleSettings inherits Rectangle {
                 ConsoleLabel { text: AppState.curr-printer == "" ? "尚未配置" : AppState.curr-printer; height: 24px; }
                 ConsoleLabel { text: "在手机或电脑浏览器打开下方地址进行连接配置"; font-size: 13px; wrap: word-wrap; height: 32px; }
                 ConsoleLabel { text: FrameworkState.web-config-url; color: ConsoleTheme.accent; height: 26px; }
-                ConsoleLabel { text: "配网热点：" + FrameworkState.web-config-ssid; font-size: 13px; color: ConsoleTheme.muted; height: 22px; }
+                ConsoleLabel { text: "Wi-Fi：" + FrameworkState.web-config-ssid; font-size: 13px; color: ConsoleTheme.muted; height: 22px; }
                 HorizontalLayout {
                     height: 32px; spacing: 8px;
                     ConsoleLabel { text: root.show-key ? "访问密钥：" + FrameworkState.web-config-key : "访问密钥：•••••••"; font-size: 14px; }
@@ -32,7 +32,16 @@ export component ConsoleSettings inherits Rectangle {
             }
         }
         HorizontalLayout {
-            ConsoleButton { text:"U1 / ACE"; height:40px; clicked=>{HubUi.visible=true;} }
+            ConsoleButton {
+                text: "开启网络配置"; primary: true; height: 40px;
+                clicked => {
+                    if FrameworkState.web-config-state != WebConfigState.Started-AP {
+                        FrameworkState.web-config-state = WebConfigState.Starting;
+                        FrameworkBackend.start-web-config();
+                    }
+                    root.show-key = true;
+                }
+            }
             ConsoleButton { text: "返回耗材"; primary: true; height: 40px; clicked => { root.back(); } }
         }
     }
