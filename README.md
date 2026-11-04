@@ -1,12 +1,18 @@
 # AMS-Hub
 
-**让耗材切换更简单、更自动化。** AMS-Hub 是基于 WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制台，基于 [SpoolEase](https://github.com/yanshay/SpoolEase) 公开源码 `3532f8d962dd1a95c7d4ebb37beddca5bbefd39a` 修改。
+**让耗材切换更简单、更自动化。** AMS-Hub 是以 Snapmaker U1 耗材切换体验为重点的独立社区项目，采用 WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI，提供中文耗材控制台，并探索配套抽屉式耗材箱。
+
+项目在 SpoolEase 基础上进行了界面和多品牌流程改造，当前仍包含其代码；不隶属于 SpoolEase、Snapmaker 或其他打印机厂商，也不代表其官方产品或获得其背书。来源与版本记录见 [NOTICE.md](NOTICE.md)。
+
+> **固件分发许可待解决：** 当前嵌入式固件使用 Slint 1.11.0，尚未取得适用的商业许可或书面例外授权。其免费 Royalty-free 条款不覆盖嵌入式系统，GPLv3 路线与本项目保留的 Commons Clause 限制也存在兼容性障碍。现有文件和构建成功记录不代表获得分发或销售许可，详见 [第三方许可与发布要求](THIRD-PARTY-NOTICES.md)。
 
 源码按 **Apache-2.0 + Commons Clause** 提供；销售软件及条款所定义的相关收费产品或服务，需要另行获得授权。详见 [许可原文](LICENSE.md) 与 [商业授权说明](COMMERCIAL-LICENSING.md)。这是带商业限制的源码公开项目，不属于 OSI 定义的开源软件。
 
 ## 项目目标
 
 AMS-Hub 致力于解决切换耗材丝时浪费的时间和精力——**为什么不让这些更简单、更自动化一些？** 同时，我们计划开发配套的紧凑型耗材干燥箱，**目前尚未实现**。
+
+硬件概念方向是铝合金承重架：上方放置 U1，下方设置两层或三层抽屉式耗材舱，供料管沿架体后侧连接机器供料入口。承重、抽屉运动时的管路余量、干燥密封与加热安全均需工程验证；目前没有发布定型结构或制造图纸。
 
 最终，我们希望你不必再跑到打印机前点击退料，经过漫长的等待后手动卷回耗材、放回干燥箱，再拿出另一卷耗材放入机器，最后逐项设置材料类型、颜色等信息。
 
@@ -22,6 +28,8 @@ AMS-Hub 致力于解决切换耗材丝时浪费的时间和精力——**为什�
 **以上描述的是最终目标，并非当前版本全部具备的功能。** 当前公开版本的能力与验证范围见下文；自动回卷机构、配套干燥箱和打印中自动换料尚未实现。耗材识别与信息写入受标签档案、机型、固件和设备接口支持范围限制。
 
 ## 独立测试版本
+
+以下为历史开发产物清单；分发状态见 [releases/README.md](releases/README.md)，不应视为已完成许可审查的下载推荐。
 
 | 版本 | 文件 | 状态 |
 | --- | --- | --- |
@@ -87,12 +95,14 @@ Anycubic 使用 `"brand":"anycubic"`，机器需切换 LAN 模式。客户端证
 
 ```powershell
 ./scripts/build.ps1 -Mirror
-./scripts/package.ps1
+./scripts/package.ps1 -LocalOnly # 仅本地开发打包；当前不代表可对外分发
 ```
 
 工具链为 `esp1`（Espressif Rust / ESP32-S3）、VS2022 C++ Build Tools、espflash 4.6.0。脚本使用仓库旁 `tools/` 的本地工具链，并把 V2 构建缓存放在本仓库 `target/`，不改写 V1 工程。依赖修订由 `core/Cargo.lock` 固定；首次构建成功后应使用 `--locked`。
 
 ## 许可与来源
+
+本项目正在规划逐步替换受限依赖、形成独立实现，见 [独立实现迁移路线](INDEPENDENT-IMPLEMENTATION.md)。该计划不改变现有代码的许可，也不表示已经完成权利清理。
 
 本项目沿用上游 [LICENSE.md](LICENSE.md)：**Apache-2.0 + Commons Clause v1.0**。AMS-Hub 自有修改亦按该组合许可提供，另有明确许可声明的第三方内容除外。允许在遵守许可的前提下学习、使用、修改和分发；未经单独授权，不得进行 Commons Clause 所定义的 “Sell”，包括销售软件，以及提供价值全部或主要来自该软件功能的收费产品或服务。
 

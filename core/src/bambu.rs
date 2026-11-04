@@ -1,3 +1,4 @@
+// Modified for AMS-Hub from SpoolEase; modification notice added 2026-11-04. See root LICENSE.md and NOTICE.md.
 // TODO:
 // Deal with when to clear tag information, when we know spool taken out
 // Deal with when to copy tag information between trays if only some data change but we know the spool is there

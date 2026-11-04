@@ -1,3 +1,4 @@
+// Modified for AMS-Hub from SpoolEase; modification notice added 2026-11-04. See root LICENSE.md and NOTICE.md.
 use core::cell::RefCell;
 use core::future::ready;
 use core::net::Ipv4Addr;

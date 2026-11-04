@@ -2,6 +2,7 @@
 name = "console-preview-render"
 version = "0.1.0"
 edition = "2021"
+license-file = "../LICENSE.md"
 
 [dependencies]
 slint = { version = "=1.11.0", default-features = false, features = ["std", "compat-1-2", "renderer-software"] }

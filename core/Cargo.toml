@@ -1,6 +1,9 @@
+# Modified for AMS-Hub from SpoolEase; modification notice added 2026-11-04. See root LICENSE.md and NOTICE.md.
 [package]
 name = "SpoolEase"
-homepage = "SpoolEase.io"
+homepage = "https://github.com/tzq712911/AMS-Hub"
+repository = "https://github.com/tzq712911/AMS-Hub"
+description = "Independent U1-focused filament console derived from SpoolEase"
 version = "0.6.0-alpha.3+ams-hub"
 edition = "2021"
 license-file = "../LICENSE.md"

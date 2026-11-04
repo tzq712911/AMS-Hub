@@ -7,6 +7,8 @@ if (-not (Test-Path $taskElf)) { throw 'Build the firmware with scripts/build-lo
 if (-not (Test-Path $taskFlash)) { throw 'espflash 4.6.0 is missing from .local-tools/espflash.' }
 $taskDist = Join-Path $taskRoot 'dist/local'
 New-Item -ItemType Directory -Path $taskDist -Force | Out-Null
+& (Join-Path $PSScriptRoot 'copy-license-notices.ps1') -Destination $taskDist
+Write-Warning 'Local development image only. Embedded Slint licensing is unresolved; do not distribute this image.'
 $taskImage = Join-Path $taskDist 'AMS-Hub-full.bin'
 & $taskFlash save-image --chip esp32s3 --flash-size 16mb --flash-mode dio --flash-freq 80mhz --partition-table $taskPartitions --target-app-partition ota_0 --merge --skip-update-check $taskElf $taskImage
 if ($LASTEXITCODE -ne 0) { throw 'Failed to generate full flash image.' }

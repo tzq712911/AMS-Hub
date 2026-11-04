@@ -1,9 +1,14 @@
+param([switch]$LocalOnly)
 $ErrorActionPreference = 'Stop'
+if (-not $LocalOnly) {
+    throw 'Distribution packaging blocked: embedded Slint licensing is unresolved. See THIRD-PARTY-NOTICES.md. -LocalOnly permits private development packaging, not distribution.'
+}
 $taskWorkspace = (Resolve-Path "$PSScriptRoot/../..").Path
 $taskProject = (Resolve-Path "$PSScriptRoot/..").Path
-$taskElf = Join-Path $taskWorkspace 'AMS-Hub/target/xtensa-esp32s3-none-elf/release/SpoolEase'
+$taskElf = Join-Path $taskProject 'target/xtensa-esp32s3-none-elf/release/SpoolEase'
 $taskDist = Join-Path $taskProject 'dist'
 New-Item -ItemType Directory -Path $taskDist -Force | Out-Null
+& (Join-Path $PSScriptRoot 'copy-license-notices.ps1') -Destination $taskDist
 $taskApp = Join-Path $taskDist 'AMS-Hub-0.6.0-alpha.3-app.bin'
 & (Join-Path $taskWorkspace 'tools/espflash/espflash.exe') save-image --chip esp32s3 --flash-size 16mb --flash-mode dio --flash-freq 80mhz --partition-table (Join-Path $taskProject 'core/partitions.csv') $taskElf $taskApp
 if ($LASTEXITCODE -ne 0) { throw 'Application image generation failed' }
@@ -21,5 +26,7 @@ $taskHash = Get-FileHash -LiteralPath $taskApp -Algorithm SHA256
     sha256 = $taskHash.Hash
     hardwareTested = $false
     buildOnly = $true
+    distributionCleared = $false
+    distributionBlocker = 'Embedded Slint licensing unresolved; local development only'
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskDist 'build-info.json') -Encoding utf8
 Write-Output "Application image: $taskApp"

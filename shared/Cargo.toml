@@ -1,7 +1,9 @@
+# Modified for AMS-Hub from SpoolEase; modification notice added 2026-11-04. See root LICENSE.md and NOTICE.md.
 [package]
 name = "shared"
 version = "0.5.5"
 edition = "2024"
+license-file = "../LICENSE.md"
 
 [profile.release]
 codegen-units = 1
