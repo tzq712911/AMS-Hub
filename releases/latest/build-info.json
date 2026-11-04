@@ -1,0 +1,13 @@
+{
+  "imageBytes": 6622624,
+  "partitionBytes": 7340032,
+  "sha256": "a30b4d0a166e3cb8d855a3420153fe3eb89274aa3dc9365f648a429dff0deff8",
+  "uiInteractionPassed": true,
+  "labelAlignmentPassed": true,
+  "terminalFlashed": true,
+  "aceMotionEnabled": false,
+  "printerMotionSent": false,
+  "bootPanic": false,
+  "observedHubFailures": 0,
+  "configurationPreserved": true
+}

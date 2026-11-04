@@ -9,3 +9,9 @@ local-config*.json
 *.credentials.json
 preview/local-rfid-library.json
 .local-tools/
+
+# Personal UI tuning tools (kept locally, not distributed).
+/启动交互模拟器.cmd
+/scripts/simulate-ui.ps1
+/scripts/simulate_ui.py
+/preview/simulator-controls.slint
