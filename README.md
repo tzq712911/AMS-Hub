@@ -1,6 +1,25 @@
 # AMS-Hub
 
-WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制台，基于 [SpoolEase](https://github.com/yanshay/SpoolEase) 公开源码 `3532f8d962dd1a95c7d4ebb37beddca5bbefd39a` 修改。
+**让耗材切换更简单、更自动化。** AMS-Hub 是基于 WT32-SC01 **Plus**（ESP32-S3、16 MiB Flash）+ PN532 SPI 的中文耗材控制台，基于 [SpoolEase](https://github.com/yanshay/SpoolEase) 公开源码 `3532f8d962dd1a95c7d4ebb37beddca5bbefd39a` 修改。
+
+源码按 **Apache-2.0 + Commons Clause** 提供；销售软件及条款所定义的相关收费产品或服务，需要另行获得授权。详见 [许可原文](LICENSE.md) 与 [商业授权说明](COMMERCIAL-LICENSING.md)。这是带商业限制的源码公开项目，不属于 OSI 定义的开源软件。
+
+## 项目目标
+
+AMS-Hub 致力于解决切换耗材丝时浪费的时间和精力——**为什么不让这些更简单、更自动化一些？** 同时，我们计划开发配套的紧凑型耗材干燥箱，**目前尚未实现**。
+
+最终，我们希望你不必再跑到打印机前点击退料，经过漫长的等待后手动卷回耗材、放回干燥箱，再拿出另一卷耗材放入机器，最后逐项设置材料类型、颜色等信息。
+
+我们希望实现的完整体验是：
+
+1. 远程发起退料，无须守在打印机前等待。
+2. 退料完成后，耗材自动卷回盒子。
+3. 收到提示后，你只需要拿出旧耗材、放入新耗材。
+4. 系统自动识别耗材，并向机器写入材料类型、颜色等受支持的信息，轻松完成一次耗材切换。
+
+未来或许还会探索打印中自动切换耗材，沿着类似 AMS 的路径继续发展。
+
+**以上描述的是最终目标，并非当前版本全部具备的功能。** 当前公开版本的能力与验证范围见下文；自动回卷机构、配套干燥箱和打印中自动换料尚未实现。耗材识别与信息写入受标签档案、机型、固件和设备接口支持范围限制。
 
 ## 独立测试版本
 
@@ -75,6 +94,10 @@ Anycubic 使用 `"brand":"anycubic"`，机器需切换 LAN 模式。客户端证
 
 ## 许可与来源
 
-保留上游 [LICENSE.md](LICENSE.md)：Apache-2.0 **附 Commons Clause 限制**，不是无限制商业许可。衍生固件仍受该限制，销售或提供相关商业服务前需核对条款。字体许可证位于 `core/ui/fonts/OFL.txt`；Slint 和其他依赖按各自许可证使用和分发。
+本项目沿用上游 [LICENSE.md](LICENSE.md)：**Apache-2.0 + Commons Clause v1.0**。AMS-Hub 自有修改亦按该组合许可提供，另有明确许可声明的第三方内容除外。允许在遵守许可的前提下学习、使用、修改和分发；未经单独授权，不得进行 Commons Clause 所定义的 “Sell”，包括销售软件，以及提供价值全部或主要来自该软件功能的收费产品或服务。
+
+**商业销售及相关收费服务需另行授权；这不等于禁止所有商业场景中的使用。** 本项目维护者只能授权其有权许可的部分，涉及 SpoolEase 上游及其他第三方权利时，还需取得相应权利人的许可。申请途径和范围见 [商业授权说明](COMMERCIAL-LICENSING.md)。由于附加了商业限制，本项目应称为源码公开（source-available），不宣称符合 OSI 开源定义。
+
+字体许可证位于 `core/ui/fonts/OFL.txt`；Slint 和其他依赖按各自许可证使用和分发。原有版权、许可和归属声明均需保留。
 
 协议依据列于 [COMPATIBILITY_RESEARCH.md](COMPATIBILITY_RESEARCH.md)。上游原说明另存为 `README-UPSTREAM.md`；历史 V1 说明见 `README-CN.md`、`CUSTOMIZATION.md`。
